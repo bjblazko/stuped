@@ -38,10 +38,11 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
+      - name: Sign (ad-hoc)
+        run: codesign --deep --force --sign - build/Build/Products/Release/Stuped.app
+
       - name: Package app
-        run: |
-          cd build/Build/Products/Release
-          zip -r "$GITHUB_WORKSPACE/Stuped.zip" Stuped.app -x "*.DS_Store"
+        run: ditto -c -k --keepParent build/Build/Products/Release/Stuped.app Stuped.zip
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

@@ -19,6 +19,20 @@ By [Hüpattl! Software](https://huepattl.de)
 - **Folder browsing** mode for exploring project directories
 - **Binary file detection** (null-byte scanning in first 8 KB)
 
+## Installation
+
+Download `Stuped.zip` from the [latest release](../../releases/latest), unzip, and move `Stuped.app` to `/Applications`.
+
+**Gatekeeper warning on first launch**
+
+Because Stuped is not notarized with Apple, macOS may show _"Stuped is damaged and can't be opened"_. Remove the quarantine attribute before launching:
+
+```bash
+xattr -cr /Applications/Stuped.app
+```
+
+Then double-click to open normally.
+
 ## Requirements
 
 - macOS 14.0 or later
