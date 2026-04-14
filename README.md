@@ -6,6 +6,10 @@ By [Hüpattl! Software](https://huepattl.de)
 
 ## Features
 
+![Plain code document with syntax highlighting](./doc/screenshot-1-code.png)
+
+![Markdown with preview including Mermaid diagrams](./doc/screenshot-2-md-preview.png)
+
 - **Code editing** with syntax highlighting (150+ languages via highlight.js), line numbers, and find bar
 - **In-window tabs** in folder mode — each opened file gets a tab; unsaved changes are preserved per tab
 - **Markdown preview** with GitHub-flavored rendering, code blocks, and Mermaid diagrams

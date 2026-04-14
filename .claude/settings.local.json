@@ -10,7 +10,8 @@
       "Bash(find:*)",
       "Bash(git rm:*)",
       "Bash(git add:*)",
-      "Bash(git mv:*)"
+      "Bash(git mv:*)",
+      "Bash(xargs ls:*)"
     ]
   }
 }
