@@ -5,15 +5,15 @@ on:
     tags:
       - 'v*'
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: macos-15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
