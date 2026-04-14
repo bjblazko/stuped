@@ -20,6 +20,11 @@ struct StupedApp: App {
             ContentView(document: file.$document, fileURL: file.fileURL)
         }
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About Stuped") {
+                    openWindow(id: "about")
+                }
+            }
             CommandGroup(after: .newItem) {
                 Button("Open Folder...") {
                     openFolder()
@@ -55,6 +60,13 @@ struct StupedApp: App {
                 }
             }
         }
+
+        // About
+        Window("About Stuped", id: "about") {
+            AboutView()
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
 
         // Folder browsing
         Window("Stuped — Folder", id: "folder-browser") {

@@ -12,12 +12,21 @@ struct FolderBrowserView: View {
                 if let url = newURL {
                     loadFolder(url: url)
                 }
+                updateWindowTitle(to: newURL)
             }
             .onAppear {
                 if let url = folderState.folderURL {
                     loadFolder(url: url)
                 }
+                updateWindowTitle(to: folderState.folderURL)
             }
+    }
+
+    private func updateWindowTitle(to url: URL?) {
+        guard let window = NSApplication.shared.windows.first(where: {
+            $0.identifier?.rawValue == "folder-browser"
+        }) else { return }
+        window.title = url?.lastPathComponent ?? "Folder"
     }
 
     // We need a reference to the ContentView to call loadFolder,
