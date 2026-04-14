@@ -32,16 +32,41 @@ A value type representing a single entry in the file tree.
 | Extension(s) | Icon |
 |--------------|------|
 | `swift` | `swift` |
+| `html, htm, xhtml` | `globe` |
+| `css, scss, sass, less` | `paintpalette` |
+| `json` | `curlybraces` |
+| `xml, plist, svg` | `chevron.left.forwardslash.chevron.right` |
+| `md, markdown, mdown, mkd, mdx` | `doc.richtext` |
 | `sh, bash, zsh, fish` | `terminal` |
-| `html, htm, css, scss` | `globe` |
-| `js, jsx, ts, tsx` | `paintpalette` |
-| `json, yaml, yml, toml, xml` | `doc.badge.gearshape` |
-| `py` | `doc.fill` |
-| `md, markdown` | `doc.richtext` |
-| `zip, tar, gz, rar, 7z` | `archivebox` |
-| `sql, db, sqlite` | `cylinder` |
+| `yml, yaml, toml, ini, cfg, conf, env, properties` | `gearshape` |
+| `png, jpg, jpeg, gif, webp, heic, ico, bmp, tiff` | `photo` |
+| `pdf` | `doc.fill` |
+| `zip, tar, gz, bz2, 7z, rar` | `archivebox` |
+| `sql` | `cylinder` |
+| `dockerfile, docker` | `shippingbox` |
 | Directories | `folder.fill` |
 | Everything else | `doc` |
+
+### Icon Colors
+
+`iconColor: Color` returns a SwiftUI `Color` for the icon, mapped by language/format group:
+
+| Color | Extensions |
+|-------|-----------|
+| `.red` | `swift`, `rs` |
+| `.orange` | `py`, `html`, `htm`, `xhtml`, `java` |
+| `.yellow` | `js`, `mjs`, `jsx`, `ts`, `tsx`, `json` |
+| `.green` | `go`, `sh`, `bash`, `zsh`, `fish`, `bat`, `cmd`, `ps1`, `psm1` |
+| `.mint` | `md`, `markdown`, `rst`, `tex`, `latex` |
+| `.teal` | `css`, `scss`, `sass`, `less` |
+| `.cyan` | `xml`, `plist`, `yml`, `yaml`, `toml`, `ini`, `cfg`, `conf`, `env` |
+| `.blue` | `c`, `h`, `cpp`, `cc`, `cxx`, `hpp`, `hxx`; directories |
+| `.indigo` | `kt`, `kts`, `scala`, `groovy`, `gradle`, `clj`, `erl`, `hrl` |
+| `.purple` | `rb`, `php`, `pl`, `pm`, `lua`, `ex`, `exs`, `hs`, `lhs`, `ml`, `lisp` |
+| `.pink` | `png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`, `heic`, `ico`, `bmp`, `tiff` |
+| custom red | `sql` |
+| `.orange` | `dockerfile`, `makefile`, `cmake` |
+| `.secondary` | everything else |
 
 ## FileTreeModel
 
@@ -99,6 +124,6 @@ A SwiftUI `List` with `.sidebar` style.
 ### Behavior
 
 - Displays `rootNode.children` using SwiftUI's `List(_:children:selection:)` for hierarchical display.
-- Each row: `Label(node.name, systemImage: node.iconName)`.
+- Each row renders a custom `Label` with `Text(node.name)` and a tinted `Image(systemName: node.iconName).foregroundStyle(node.iconColor)`.
 - Selection binding: `@Binding selectedFileURL: URL?`, tagged with `node.url`.
 - Shows `ContentUnavailableView` if no root node or empty children.

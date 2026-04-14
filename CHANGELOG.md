@@ -9,11 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Custom About dialog with copyright, links to Hüpattl! Software website, GitHub project, and Apache License 2.0
+- In-window tabs for folder browser mode: opening a file from the sidebar creates a tab; switching tabs preserves unsaved edits; dirty tabs show a blue accent dot; tabs close with ×
+- Floating view-mode switcher (Edit / Split / Preview) as a frosted-glass icon overlay in the top-right corner of the editor — only visible for Markdown and HTML files
+- File-type icon colors in the sidebar: each language/format group gets a distinct rainbow-spectrum color (Swift → red, JS/TS/JSON → yellow, Go/shell → green, CSS → teal, config → cyan, C/C++ → blue, Ruby/Lua/Elixir → purple, images → pink, …)
+- Custom About dialog with app version, copyright "© 2026 Timo Böwing", and links to Hüpattl! Software, GitHub project, and Apache License 2.0
 
 ### Changed
 
-- Folder browser window title now shows the name of the open folder instead of the static "Stuped — Folder"
+- Folder browser window title now shows the parent folder of the selected file (or the root folder name when nothing is selected)
+- View-mode segmented control removed from the toolbar (replaced by the in-editor overlay)
 
 ## [0.1.0] - 2026-04-14
 

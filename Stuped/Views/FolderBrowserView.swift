@@ -1,38 +1,70 @@
 import SwiftUI
 
-/// Thin wrapper for the folder-browsing WindowGroup scene.
-/// Delegates to ContentView in folder mode.
+/// Thin wrapper for the folder-browsing Window scene.
+/// Owns the TabManager and routes file selection through it.
 struct FolderBrowserView: View {
-    @State private var document = StupedDocument()
+    @State private var tabManager = TabManager()
     private var folderState = FolderBrowserState.shared
 
+    private var windowTitle: String {
+        if let selected = folderState.selectedFileURL {
+            return selected.deletingLastPathComponent().lastPathComponent
+        }
+        return folderState.folderURL?.lastPathComponent ?? "Folder"
+    }
+
+    /// Binding whose get/set route through the active tab so ContentView always
+    /// reads and writes the right tab's content.
+    private var activeDocumentBinding: Binding<StupedDocument> {
+        Binding(
+            get: {
+                var doc = StupedDocument()
+                doc.text = tabManager.activeTab?.text ?? ""
+                return doc
+            },
+            set: { newDoc in
+                guard let tab = tabManager.activeTab else { return }
+                // Only mark dirty if text actually changed
+                if tab.text != newDoc.text {
+                    tab.text = newDoc.text
+                }
+            }
+        )
+    }
+
     var body: some View {
-        ContentView(document: $document, fileURL: nil, folderMode: true)
-            .onChange(of: folderState.folderURL) { _, newURL in
-                if let url = newURL {
-                    loadFolder(url: url)
-                }
-                updateWindowTitle(to: newURL)
+        ContentView(
+            document: activeDocumentBinding,
+            fileURL: nil,
+            folderMode: true,
+            tabManager: tabManager,
+            onFileSelected: handleFileSelected,
+            onFileSaved: handleFileSaved
+        )
+        .navigationTitle(windowTitle)
+        .onChange(of: folderState.folderURL) { newURL in
+            if let url = newURL {
+                tabManager.clearAll()
+                loadFolder(url: url)
             }
-            .onAppear {
-                if let url = folderState.folderURL {
-                    loadFolder(url: url)
-                }
-                updateWindowTitle(to: folderState.folderURL)
+        }
+        .onAppear {
+            if let url = folderState.folderURL {
+                loadFolder(url: url)
             }
+        }
     }
 
-    private func updateWindowTitle(to url: URL?) {
-        guard let window = NSApplication.shared.windows.first(where: {
-            $0.identifier?.rawValue == "folder-browser"
-        }) else { return }
-        window.title = url?.lastPathComponent ?? "Folder"
+    private func handleFileSelected(_ url: URL) {
+        tabManager.open(url: url)
+        FolderBrowserState.shared.selectedFileURL = url
     }
 
-    // We need a reference to the ContentView to call loadFolder,
-    // but since ContentView owns the tree model, we pass via notification
+    private func handleFileSaved(_ url: URL) {
+        tabManager.tabs.first(where: { $0.fileURL == url })?.markSaved()
+    }
+
     private func loadFolder(url: URL) {
-        // Post notification that ContentView observes
         NotificationCenter.default.post(
             name: .stupedFolderOpened,
             object: nil,

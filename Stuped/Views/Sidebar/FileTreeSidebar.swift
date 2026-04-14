@@ -8,8 +8,13 @@ struct FileTreeSidebar: View {
         Group {
             if let root = rootNode, let children = root.children {
                 List(children, children: \.children, selection: $selectedFileURL) { node in
-                    Label(node.name, systemImage: node.iconName)
-                        .tag(node.url)
+                    Label {
+                        Text(node.name)
+                    } icon: {
+                        Image(systemName: node.iconName)
+                            .foregroundStyle(node.iconColor)
+                    }
+                    .tag(node.url)
                 }
                 .listStyle(.sidebar)
             } else {

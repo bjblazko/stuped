@@ -7,11 +7,12 @@ By [Hüpattl! Software](https://huepattl.de)
 ## Features
 
 - **Code editing** with syntax highlighting (150+ languages via highlight.js), line numbers, and find bar
+- **In-window tabs** in folder mode — each opened file gets a tab; unsaved changes are preserved per tab
 - **Markdown preview** with GitHub-flavored rendering, code blocks, and Mermaid diagrams
 - **HTML preview** with live rendering in a WebView
 - **Image preview** for PNG, JPEG, GIF, BMP, TIFF, WebP, HEIC, and ICO files
-- **Split view** for side-by-side editing and preview
-- **File tree sidebar** with real-time directory watching (kqueue)
+- **Split view** for side-by-side editing and preview, toggled via a floating icon overlay (Edit / Split / Preview)
+- **File tree sidebar** with color-coded file-type icons and real-time directory watching (kqueue)
 - **Path bar** with clickable breadcrumb navigation and right-click to copy path
 - **Git integration** showing current branch and remote origin tooltip
 - **Status bar** with cursor position, line count, indentation, line endings, and encoding
@@ -62,11 +63,13 @@ open Stuped.xcodeproj
 
 ### View modes
 
-For Markdown and HTML files, a segmented control appears in the toolbar:
+For Markdown and HTML files, a small frosted-glass icon overlay appears in the top-right corner of the editor:
 
-- **Edit** -- code editor only
-- **Preview** -- rendered preview only
-- **Split** -- editor and preview side by side
+- **Edit** (`doc.plaintext`) — code editor only
+- **Split** (`rectangle.split.2x1`) — editor and preview side by side
+- **Preview** (`eye`) — rendered preview only
+
+Hover over each icon to see its tooltip. The overlay is hidden for plain source files and images.
 
 ### Path bar
 

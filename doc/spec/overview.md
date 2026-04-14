@@ -21,24 +21,29 @@ graph TD
     StupedApp["StupedApp (SwiftUI App)"]
     StupedApp --> DG["DocumentGroup scene\n(single-file editing)"]
     StupedApp --> WS["Window scene\n'folder-browser'"]
+    StupedApp --> WA["Window scene\n'about'"]
     DG --> CV1["ContentView"]
     WS --> FBV["FolderBrowserView"]
+    FBV --> TM["TabManager"]
     FBV --> CV2["ContentView (folder mode)"]
-
-    CV["ContentView"] --> NSV["NavigationSplitView"]
+    CV2 --> TBV["TabBarView"]
+    CV2 --> NSV["NavigationSplitView"]
     NSV --> Sidebar["FileTreeSidebar"]
-    NSV --> Detail["Detail VStack"]
+    NSV --> Detail["Detail pane"]
     Detail --> PBV["PathBarView"]
-    Detail --> EA["Editor Area\n(CodeEditorView / MarkdownPreviewView)"]
+    Detail --> EA["Editor Area + view-mode overlay\n(CodeEditorView / MarkdownPreviewView)"]
     Detail --> SBV["StatusBarView"]
+    TM --> TI["TabItem (per open file)"]
 ```
 
 ## Data Flow
 
-1. **File selection** flows from `FileTreeSidebar` through `sidebarFileURL` (@State) to `ContentView`, which loads the file into `StupedDocument.text` (@Binding).
-2. **Text editing** flows from `NSTextView` through the `Coordinator` delegate back to `document.text`, triggering debounced syntax highlighting and preview updates.
-3. **Git info** is fetched asynchronously via `Process` when the active file changes, stored in `@State gitInfo`, and displayed by `PathBarView`.
-4. **File tree updates** are triggered by kqueue file system events, which rebuild the `FileTreeModel.rootNode` tree.
+1. **File selection** flows from `FileTreeSidebar` → `onFileSelected` callback → `TabManager.open(url:)` which loads the file (if new) or switches to the existing tab. The active tab's text is bound back to `ContentView` via `FolderBrowserView.activeDocumentBinding`.
+2. **Tab switching** is signalled by the `.stupedTabSwitched` notification. `ContentView` receives it to update the sidebar highlight and infer the correct view mode without re-reading the file from disk.
+3. **Text editing** flows from `NSTextView` through the `Coordinator` delegate back to `document.text` → `TabManager.activeTab.text`, marking the tab dirty (`isDirty = true`).
+4. **Saving** writes `document.text` to `sidebarFileURL`; the `onFileSaved` callback clears the tab's dirty flag.
+5. **Git info** is fetched asynchronously via `Process` when the active file changes, stored in `@State gitInfo`, and displayed by `PathBarView`.
+6. **File tree updates** are triggered by kqueue file system events, which rebuild the `FileTreeModel.rootNode` tree.
 
 ## Technology Stack
 
@@ -58,26 +63,31 @@ graph TD
 
 ```
 Stuped/
-  StupedApp.swift              App entry point, scenes, AppDelegate
+  StupedApp.swift              App entry point, scenes, AppDelegate, FolderBrowserState
   Models/
     StupedDocument.swift        FileDocument conformance
     EditorState.swift           Cursor, indentation, line endings
-    FileNode.swift              File tree node
+    FileNode.swift              File tree node (iconName, iconColor)
     FileTreeModel.swift         Directory loading and watching
     GitInfo.swift               Async git info fetcher
-    LanguageMap.swift            Extension-to-language mapping, PreviewType
+    LanguageMap.swift           Extension-to-language mapping, PreviewType
+    TabItem.swift               Per-tab state (fileURL, text, dirty tracking)
+    TabManager.swift            Tab list management and file loading
   Views/
+    AboutView.swift             Custom About dialog
     ContentView.swift           Main layout, toolbar, coordination
-    FolderBrowserView.swift     Folder-browser window wrapper
+    FolderBrowserView.swift     Folder-browser window wrapper, owns TabManager
     PathBarView.swift           Breadcrumb path bar with git branch
     StatusBarView.swift         Bottom metadata bar
+    TabBarView.swift            Horizontal tab strip for folder mode
     Editor/
       CodeEditorView.swift      NSTextView wrapper with highlighting
       LineNumberGutterView.swift Line number gutter
     Preview/
       MarkdownPreviewView.swift WKWebView wrapper for Markdown/HTML
+      ImagePreviewView.swift    Image viewer with metadata overlay
     Sidebar/
-      FileTreeSidebar.swift     Hierarchical file list
+      FileTreeSidebar.swift     Hierarchical file list with colored icons
   Resources/
     markdown-it.min.js
     highlight.min.js

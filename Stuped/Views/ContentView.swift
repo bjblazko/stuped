@@ -17,6 +17,13 @@ struct ContentView: View {
     /// (replacing the current document text). When false (DocumentGroup mode),
     /// sidebar clicks open new windows.
     private let isFolderMode: Bool
+    /// When provided, the tab bar is rendered inside the detail pane and tab management
+    /// is delegated to FolderBrowserView instead of ContentView loading files itself.
+    private let tabManager: TabManager?
+    /// Called when the user selects a file in the sidebar (folder mode with tabs).
+    private let onFileSelected: ((URL) -> Void)?
+    /// Called after ContentView successfully saves a file, so the caller can clear the dirty flag.
+    private let onFileSaved: ((URL) -> Void)?
 
     enum ViewMode: String, CaseIterable {
         case edit = "Edit"
@@ -29,19 +36,34 @@ struct ContentView: View {
         self._document = document
         self.fileURL = fileURL
         self.isFolderMode = false
+        self.tabManager = nil
+        self.onFileSelected = nil
+        self.onFileSaved = nil
         self._columnVisibility = State(initialValue: .detailOnly)
     }
 
-    /// Folder mode: opened via Open Folder. Sidebar visible by default.
-    init(document: Binding<StupedDocument>, fileURL: URL?, folderMode: Bool) {
+    /// Folder mode with tab support. The tab bar is rendered inside the detail pane;
+    /// sidebar clicks are routed through onFileSelected so FolderBrowserView can manage tabs.
+    init(document: Binding<StupedDocument>, fileURL: URL?, folderMode: Bool,
+         tabManager: TabManager? = nil,
+         onFileSelected: ((URL) -> Void)? = nil,
+         onFileSaved: ((URL) -> Void)? = nil) {
         self._document = document
         self.fileURL = fileURL
         self.isFolderMode = folderMode
+        self.tabManager = tabManager
+        self.onFileSelected = onFileSelected
+        self.onFileSaved = onFileSaved
         self._columnVisibility = State(initialValue: .all)
     }
 
     private var activeFileURL: URL? {
-        isFolderMode ? sidebarFileURL : fileURL
+        if isFolderMode {
+            // Prefer sidebar selection; fall back to active tab so navigating
+            // to a folder via breadcrumbs doesn't blank the editor.
+            return sidebarFileURL ?? tabManager?.activeTab?.fileURL
+        }
+        return fileURL
     }
 
     private var previewType: PreviewType? {
@@ -64,7 +86,10 @@ struct ContentView: View {
 
     private var detailContent: some View {
         VStack(spacing: 0) {
-            if isFolderMode && sidebarFileURL == nil {
+            if let tm = tabManager, !tm.tabs.isEmpty {
+                TabBarView(tabManager: tm)
+            }
+            if isFolderMode && activeFileURL == nil {
                 ContentUnavailableView("No File Selected",
                     systemImage: "doc.text",
                     description: Text("Select a file from the sidebar to view or edit it."))
@@ -75,6 +100,11 @@ struct ContentView: View {
 
                 editorArea
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay(alignment: .topTrailing) {
+                        if isPreviewable && !isImageFile {
+                            viewModeOverlay
+                        }
+                    }
 
                 if viewMode != .preview && !isImageFile {
                     StatusBarView(editorState: editorState, language: detectedLanguage)
@@ -127,9 +157,27 @@ struct ContentView: View {
         }
         .onChange(of: sidebarFileURL) { _, newURL in
             if isFolderMode {
-                loadFileFromSidebar(url: newURL)
+                if let callback = onFileSelected {
+                    // Tab-aware mode: caller handles file loading via TabManager.
+                    if let url = newURL { callback(url) }
+                } else {
+                    loadFileFromSidebar(url: newURL)
+                }
+                FolderBrowserState.shared.selectedFileURL = newURL
             }
             refreshGitInfo()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stupedTabSwitched)) { notif in
+            guard isFolderMode, let url = notif.userInfo?["url"] as? URL else { return }
+            // Update sidebar highlight and view mode without reloading from disk.
+            sidebarFileURL = url
+            if LanguageMap.isImage(url.pathExtension) {
+                viewMode = .preview
+            } else if LanguageMap.previewType(for: url.pathExtension) != nil {
+                viewMode = .split
+            } else {
+                viewMode = .edit
+            }
         }
     }
 
@@ -177,6 +225,35 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - View mode overlay
+
+    private var viewModeOverlay: some View {
+        HStack(spacing: 1) {
+            viewModeButton(.edit,    icon: "doc.plaintext", tooltip: "Edit")
+            viewModeButton(.split,   icon: "rectangle.split.2x1", tooltip: "Split")
+            viewModeButton(.preview, icon: "eye",           tooltip: "Preview")
+        }
+        .padding(4)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 7))
+        .padding(10)
+    }
+
+    private func viewModeButton(_ mode: ViewMode, icon: String, tooltip: String) -> some View {
+        Button { viewMode = mode } label: {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .medium))
+                .frame(width: 26, height: 22)
+                .foregroundStyle(viewMode == mode ? .primary : .tertiary)
+                .background(
+                    viewMode == mode
+                        ? RoundedRectangle(cornerRadius: 5).fill(Color(nsColor: .controlBackgroundColor))
+                        : nil
+                )
+        }
+        .buttonStyle(.plain)
+        .help(tooltip)
+    }
+
     // MARK: - Toolbar
 
     @ToolbarContentBuilder
@@ -206,17 +283,6 @@ struct ContentView: View {
             .help(wordWrap ? "Disable Word Wrap" : "Enable Word Wrap")
         }
 
-        ToolbarItem(placement: .automatic) {
-            if isPreviewable && !isImageFile {
-                Picker("View Mode", selection: $viewMode) {
-                    ForEach(ViewMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 200)
-            }
-        }
     }
 
     // MARK: - File Tree
@@ -336,6 +402,7 @@ struct ContentView: View {
         guard !LanguageMap.isImage(url.pathExtension) else { return }
         do {
             try document.text.write(to: url, atomically: true, encoding: .utf8)
+            onFileSaved?(url)
         } catch {
             print("Save error: \(error.localizedDescription)")
         }

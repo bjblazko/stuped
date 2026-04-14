@@ -21,7 +21,7 @@ DocumentGroup(newDocument: StupedDocument()) { file in
 ### 2. Window (folder browsing)
 
 ```swift
-Window("Stuped -- Folder", id: "folder-browser") {
+Window("Stuped — Folder", id: "folder-browser") {
     FolderBrowserView()
 }
 .defaultSize(width: 900, height: 600)
@@ -29,6 +29,19 @@ Window("Stuped -- Folder", id: "folder-browser") {
 
 - Opened via Open Folder (Cmd+Shift+O).
 - Single shared window (not a WindowGroup).
+- `FolderBrowserView` owns a `TabManager` and passes an `activeDocumentBinding` to `ContentView` so the active tab's text is always displayed.
+
+### 3. Window (About)
+
+```swift
+Window("About Stuped", id: "about") {
+    AboutView()
+}
+.windowResizability(.contentSize)
+```
+
+- Opened via the Stuped > About Stuped menu item (intercepted via `CommandGroup(replacing: .appInfo)`).
+- Displays version, copyright, and links to the website, GitHub, and the Apache 2.0 license.
 
 ## AppDelegate
 
@@ -74,32 +87,42 @@ class AppDelegate: NSObject, NSApplicationDelegate
 
 ## FolderBrowserState
 
-A singleton `@Observable` class:
+A singleton `@Observable` class that bridges `StupedApp` (which has `openWindow`) with `FolderBrowserView`:
 
 ```swift
 @Observable
 class FolderBrowserState {
     static let shared = FolderBrowserState()
     var folderURL: URL?
+    var selectedFileURL: URL?   // drives the window title
 }
 ```
 
-Bridges the `StupedApp` scene (which has access to `openWindow`) with the `FolderBrowserView` (which needs the folder URL).
+## Tab Management in Folder Mode
 
-## File Loading in Folder Mode
+`FolderBrowserView` owns a `TabManager` instance. File loading is routed through it:
 
-When a file is selected in the sidebar (`onChange(of: sidebarFileURL)`):
+1. Sidebar selection change → `onFileSelected` callback → `TabManager.open(url:)`.
+2. `TabManager.open(url:)`: if tab already exists, switches to it and posts `.stupedTabSwitched`; otherwise loads the file from disk, creates a `TabItem`, and makes it active.
+3. `FolderBrowserView.activeDocumentBinding` exposes `tabManager.activeTab.text` as a `Binding<StupedDocument>` to `ContentView`.
+4. On tab switch, `ContentView` receives `.stupedTabSwitched`, updates `sidebarFileURL` (sidebar highlight), and infers the correct `viewMode` from the file type — no disk read.
 
-1. Verify the file exists and is not a directory.
+`TabItem` stores:
+- `fileURL` — immutable
+- `text` — current editor content
+- `savedText` — content as of last save; `isDirty` is computed as `text != savedText`
+
+## File Loading in Folder Mode (new tab)
+
+When `TabManager.open(url:)` creates a new tab:
+
+1. Verify the file is not an image (images get an empty `text` and `.preview` mode).
 2. Read file data from disk.
 3. Check for binary content (null bytes in first 8 KB).
-4. Decode as UTF-8 into `document.text`.
-5. Detect line endings and indentation.
-6. Set `viewMode` to `.split` if previewable, else `.edit`.
-7. Refresh git info.
+4. Decode as UTF-8; store in `TabItem.text` and `TabItem.savedText`.
 
 ## Saving in Folder Mode
 
-- No visible save button (removed from toolbar).
 - Cmd+S is registered via a hidden zero-size `Button` with `.keyboardShortcut("s")`.
-- `saveCurrentFile()` writes `document.text` to `sidebarFileURL` via `String.write(to:atomically:encoding:)`.
+- `saveCurrentFile()` writes `document.text` (= active tab's text via binding) to `sidebarFileURL`.
+- The `onFileSaved` callback notifies `FolderBrowserView`, which calls `tabManager.activeTab?.markSaved()` to clear the dirty flag.

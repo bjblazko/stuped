@@ -99,8 +99,10 @@ struct StupedApp: App {
 class FolderBrowserState {
     static let shared = FolderBrowserState()
     var folderURL: URL?
+    var selectedFileURL: URL?
 
     func openFolder(url: URL) {
         self.folderURL = url
+        self.selectedFileURL = nil
     }
 }
