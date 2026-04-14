@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(xcode-select -p)",
+      "Bash(xcodegen generate:*)",
+      "Bash(xcodebuild -project Stuped.xcodeproj -scheme Stuped -destination 'platform=macOS' build)",
+      "Bash(xcodebuild -project Stuped.xcodeproj -scheme Stuped -resolvePackageDependencies)",
+      "Bash(find:*)",
+      "Bash(git rm:*)",
+      "Bash(git add:*)",
+      "Bash(git mv:*)"
+    ]
+  }
+}

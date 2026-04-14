@@ -1,0 +1,104 @@
+# Stuped
+
+A native macOS code editor and file browser built with SwiftUI. Stuped offers syntax highlighting for 100+ languages, live Markdown and HTML preview with Mermaid diagram support, a file tree with real-time watching, and git branch display.
+
+By [Hüpattl! Software](https://huepattl.de)
+
+## Features
+
+- **Code editing** with syntax highlighting (150+ languages via highlight.js), line numbers, and find bar
+- **Markdown preview** with GitHub-flavored rendering, code blocks, and Mermaid diagrams
+- **HTML preview** with live rendering in a WebView
+- **Image preview** for PNG, JPEG, GIF, BMP, TIFF, WebP, HEIC, and ICO files
+- **Split view** for side-by-side editing and preview
+- **File tree sidebar** with real-time directory watching (kqueue)
+- **Path bar** with clickable breadcrumb navigation and right-click to copy path
+- **Git integration** showing current branch and remote origin tooltip
+- **Status bar** with cursor position, line count, indentation, line endings, and encoding
+- **Dark/light mode** support throughout, including preview themes
+- **Folder browsing** mode for exploring project directories
+- **Binary file detection** (null-byte scanning in first 8 KB)
+
+## Requirements
+
+- macOS 14.0 or later
+- Xcode 16.0 or later
+- Swift 5.9
+
+## Building
+
+```bash
+# Generate project (if using XcodeGen)
+xcodegen generate
+
+# Build from command line
+xcodebuild -scheme Stuped -destination 'platform=macOS' build
+
+# Or open in Xcode
+open Stuped.xcodeproj
+```
+
+## Usage
+
+### Opening files
+
+- **File > Open** (Cmd+O) to open a single file in its own window
+- **Double-click** a file in Finder to open it in Stuped
+- **Open Folder** (Cmd+Shift+O) to browse an entire directory
+
+### View modes
+
+For Markdown and HTML files, a segmented control appears in the toolbar:
+
+- **Edit** -- code editor only
+- **Preview** -- rendered preview only
+- **Split** -- editor and preview side by side
+
+### Path bar
+
+The path bar above the editor shows the full file path. Click any component to navigate the sidebar to that directory. Right-click any component to copy its path to the clipboard.
+
+### Git
+
+If the current file is inside a git repository, the branch name appears at the right end of the path bar. Hover for a tooltip showing the remote origin URL.
+
+## Documentation
+
+- [**Changelog**](CHANGELOG.md) -- version history (keep-a-changelog format)
+- [**Architecture (arc42)**](doc/arc42.md) -- system context, building blocks, runtime, deployment, quality
+- [**ADR Index**](doc/adr/index.md) -- architecture decision records
+- **Specifications** (`doc/spec/`):
+  - [Overview](doc/spec/overview.md) -- system overview, terminology, tech stack, source layout
+  - [App Lifecycle](doc/spec/app-lifecycle.md) -- scenes, launch behavior, single-file vs folder mode
+  - [Document Model](doc/spec/document-model.md) -- StupedDocument, file types, binary detection
+  - [Code Editor](doc/spec/code-editor.md) -- NSTextView, line numbers, highlighting, key handling
+  - [Preview Rendering](doc/spec/preview-rendering.md) -- Markdown/HTML/image, WKWebView, JS libraries
+  - [File Tree](doc/spec/file-tree.md) -- FileNode, FileTreeModel, directory watching
+  - [Path Bar](doc/spec/path-bar.md) -- breadcrumb navigation, click handling, copy path
+  - [Git Integration](doc/spec/git-integration.md) -- branch detection, remote URL
+  - [Status Bar](doc/spec/status-bar.md) -- cursor, indentation, line-ending detection
+  - [Language Map](doc/spec/language-map.md) -- extension-to-language mapping, preview types
+
+## Dependencies
+
+| Dependency | Version | Purpose |
+|------------|---------|---------|
+| [HighlighterSwift](https://github.com/smittytone/HighlighterSwift) | 1.0.0+ | Syntax highlighting engine |
+
+Bundled JavaScript/CSS resources (not npm-managed):
+
+| Resource | Purpose |
+|----------|---------|
+| markdown-it.min.js | Markdown parsing (CommonMark + extensions) |
+| highlight.min.js | Code block syntax highlighting in preview |
+| mermaid.min.js | Diagram and flowchart rendering |
+| preview-styles.css | GitHub-style preview typography |
+| hljs-github.css / hljs-github-dark.css | Code theme for light/dark mode |
+
+## License
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full text.
+
+Copyright 2026 Hüpattl! Software (https://huepattl.de)
+
+All dependencies use compatible open-source licenses: HighlighterSwift (MIT), highlight.js (BSD-3-Clause), markdown-it (MIT), mermaid (MIT).
