@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-04-14
+
 ### Added
 
 - In-window tabs for folder browser mode: opening a file from the sidebar creates a tab; switching tabs preserves unsaved edits; dirty tabs show a blue accent dot; tabs close with ×
