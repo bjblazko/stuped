@@ -96,6 +96,11 @@ struct StupedApp: App {
                     NotificationCenter.default.post(name: .stupedToggleRecentFiles, object: nil)
                 }
                 .keyboardShortcut("r")
+
+                Button("Search Files...") {
+                    NotificationCenter.default.post(name: .stupedToggleGlobalSearch, object: nil)
+                }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
             }
         }
     }

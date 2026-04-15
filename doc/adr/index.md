@@ -14,3 +14,4 @@
 | [0010](0010-in-window-tab-management.md) | In-Window Tab Management for Folder Mode | Accepted |
 | [0011](0011-view-mode-overlay.md) | View Mode Switcher as In-Editor Overlay | Accepted |
 | [0012](0012-minimap-two-pass-normalization.md) | Mini-Map Two-Pass Width Normalisation | Accepted |
+| [0013](0013-per-tab-file-watching.md) | Per-Tab File Watching for External Change Detection | Accepted |

@@ -10,6 +10,8 @@ struct FolderBrowserView: View {
     @State private var recentFilesInitialIndex = 0
     @State private var recentFilesCycleTrigger = 0
 
+    @State private var showGlobalSearch = false
+
     private var windowTitle: String {
         if let selected = folderState.selectedFileURL {
             return selected.deletingLastPathComponent().lastPathComponent
@@ -49,6 +51,9 @@ struct FolderBrowserView: View {
             .onReceive(NotificationCenter.default.publisher(for: .stupedToggleRecentFiles)) { _ in
                 handleCmdE()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .stupedToggleGlobalSearch)) { _ in
+                showGlobalSearch.toggle()
+            }
 
             if showRecentFiles {
                 RecentFilesPopupView(
@@ -60,8 +65,18 @@ struct FolderBrowserView: View {
                 )
                 .transition(.opacity.combined(with: .scale(scale: 0.97)))
             }
+
+            if showGlobalSearch, let rootURL = FolderBrowserState.shared.folderURL {
+                GlobalSearchPopupView(
+                    rootURL: rootURL,
+                    isShowing: $showGlobalSearch,
+                    onSelect: handleFileSelected
+                )
+                .transition(AnyTransition.opacity.combined(with: AnyTransition.scale(scale: 0.97)))
+            }
         }
         .animation(.easeOut(duration: 0.12), value: showRecentFiles)
+        .animation(.easeOut(duration: 0.12), value: showGlobalSearch)
         .navigationTitle(windowTitle)
         .onChange(of: folderState.folderURL) { _, newURL in
             if let url = newURL {
@@ -107,4 +122,5 @@ struct FolderBrowserView: View {
 extension Notification.Name {
     static let stupedFolderOpened = Notification.Name("stupedFolderOpened")
     static let stupedToggleRecentFiles = Notification.Name("stupedToggleRecentFiles")
+    static let stupedToggleGlobalSearch = Notification.Name("stupedToggleGlobalSearch")
 }

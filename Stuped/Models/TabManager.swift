@@ -7,6 +7,8 @@ final class TabManager {
     /// Tab IDs ordered from most-recently to least-recently accessed (index 0 = current).
     var recentTabIDs: [TabItem.ID] = []
 
+    private var watchedFDs: [TabItem.ID: (fd: Int32, source: DispatchSourceFileSystemObject)] = [:]
+
     var activeTab: TabItem? {
         tabs.first { $0.id == activeTabID }
     }
@@ -35,6 +37,7 @@ final class TabManager {
         let text = Self.loadText(from: url)
         let tab = TabItem(fileURL: url, text: text)
         tabs.append(tab)
+        startWatching(tab)
         activeTabID = tab.id
         recordAccess(tab.id)
         NotificationCenter.default.post(
@@ -52,6 +55,7 @@ final class TabManager {
     func close(_ id: TabItem.ID) {
         guard let idx = tabs.firstIndex(where: { $0.id == id }) else { return }
         let wasActive = activeTabID == id
+        stopWatching(id)
         tabs.remove(at: idx)
 
         guard wasActive else { return }
@@ -75,9 +79,43 @@ final class TabManager {
     }
 
     func clearAll() {
+        stopAllWatchers()
         tabs.removeAll()
         activeTabID = nil
         recentTabIDs.removeAll()
+    }
+
+    // MARK: - File watching
+
+    private func startWatching(_ tab: TabItem) {
+        let fd = Darwin.open(tab.fileURL.path, O_EVTONLY)
+        guard fd >= 0 else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fd, eventMask: [.write, .rename, .delete], queue: .main)
+        source.setEventHandler { [weak self, weak tab] in
+            guard let self, let tab else { return }
+            let mask = source.data
+            if mask.contains(.write) && !tab.isDirty {
+                let fresh = Self.loadText(from: tab.fileURL)
+                tab.text = fresh
+                tab.savedText = fresh
+            }
+            if mask.contains(.rename) || mask.contains(.delete) {
+                self.stopWatching(tab.id)
+            }
+        }
+        source.setCancelHandler { Darwin.close(fd) }
+        source.resume()
+        watchedFDs[tab.id] = (fd, source)
+    }
+
+    private func stopWatching(_ id: TabItem.ID) {
+        watchedFDs.removeValue(forKey: id)?.source.cancel()
+    }
+
+    private func stopAllWatchers() {
+        watchedFDs.values.forEach { $0.source.cancel() }
+        watchedFDs.removeAll()
     }
 
     // MARK: - File loading

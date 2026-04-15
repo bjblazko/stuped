@@ -117,6 +117,8 @@ Uses Darwin kqueue via `DispatchSource.makeFileSystemObjectSource`:
 - Rebuilds the entire tree on any change (no incremental updates).
 - Does not debounce rapid file system events.
 
+> **See also:** `TabManager` uses the same kqueue/DispatchSource pattern to watch individual open files and reload their content when an external process writes to them (ADR-0013).
+
 ## FileTreeSidebar
 
 A SwiftUI `List` with `.sidebar` style.

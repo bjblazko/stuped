@@ -16,12 +16,14 @@ By [Hüpattl! Software](https://huepattl.de)
 - **HTML preview** with live rendering in a WebView
 - **Image preview** for PNG, JPEG, GIF, BMP, TIFF, WebP, HEIC, and ICO files
 - **Split view** for side-by-side editing and preview, toggled via a floating icon overlay (Edit / Split / Preview)
+- **Live file reload** — when an external process modifies a file that is open in a tab, the editor updates immediately (unmodified tabs only; tabs with unsaved edits are left untouched)
 - **File tree sidebar** with color-coded file-type icons and real-time directory watching (kqueue)
 - **Path bar** with clickable breadcrumb navigation and right-click to copy path
 - **Git integration** showing current branch and remote origin tooltip
 - **Status bar** with cursor position, line count, indentation, line endings, and encoding
 - **Dark/light mode** support throughout, including preview themes
 - **Folder browsing** mode for exploring project directories
+- **Global file search** (Cmd+Shift+F) searches all files in the open tree by name, contents, or both
 - **Binary file detection** (null-byte scanning in first 8 KB)
 
 ## Installation
@@ -74,6 +76,19 @@ For Markdown and HTML files, a small frosted-glass icon overlay appears in the t
 - **Preview** (`eye`) — rendered preview only
 
 Hover over each icon to see its tooltip. The overlay is hidden for plain source files and images.
+
+### Keyboard shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| Cmd+Shift+O | Open Folder |
+| Cmd+R | Recent Files popup |
+| Cmd+Shift+F | Global file search |
+| Cmd+Shift+M | Toggle mini-map |
+| Cmd+Shift+W | Toggle word wrap |
+| Cmd+Shift+H | Toggle hidden files |
+| Cmd+F | Find in editor |
+| Cmd+Option+F | Find & Replace in editor |
 
 ### Path bar
 

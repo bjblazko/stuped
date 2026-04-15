@@ -1,4 +1,4 @@
-# Changelog
+# 1Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.4.0] - 2026-04-15
+
+### Fixed
+
+- Open tabs now reflect external file changes immediately: when another process writes to a file that is open (and unmodified) in a tab, the editor reloads from disk automatically. Tabs with unsaved edits are left untouched.
+
+### Added
+
+- Global file search dialog (⌘⇧F): search all files in the open folder tree (including subdirectories) by file name, file contents, or both. Results show file name, relative path, and (for content matches) a preview of the matching line with its line number. Navigate with ↑/↓, open with Enter, dismiss with Escape or click outside.
 
 ## [0.3.0] - 2026-04-15
 
