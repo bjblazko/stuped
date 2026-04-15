@@ -10,7 +10,9 @@ struct ContentView: View {
     @State private var sidebarFileURL: URL?
     @State private var columnVisibility: NavigationSplitViewVisibility
     @State private var gitInfo: GitInfo?
-    @State private var wordWrap: Bool = true
+    @AppStorage("editor.wordWrap") private var wordWrap: Bool = false
+    @AppStorage("editor.showMiniMap") private var showMiniMap: Bool = true
+    @AppStorage("fileTree.showHiddenFiles") private var showHiddenFiles: Bool = false
     @Environment(\.openWindow) private var openWindow
 
     /// When true, selecting a file in the sidebar loads it into the editor
@@ -103,6 +105,7 @@ struct ContentView: View {
                     .overlay(alignment: .topTrailing) {
                         if isPreviewable && !isImageFile {
                             viewModeOverlay
+                                .padding(.trailing, showMiniMap && viewMode == .edit ? MiniMapView.width : 0)
                         }
                     }
 
@@ -140,8 +143,6 @@ struct ContentView: View {
             setupFileTree()
             if isImageFile {
                 viewMode = .preview
-            } else if isPreviewable {
-                viewMode = .split
             }
             if !isFolderMode {
                 editorState.detectLineEnding(in: document.text)
@@ -154,6 +155,10 @@ struct ContentView: View {
                 treeModel.loadDirectory(at: url)
                 sidebarFileURL = nil
             }
+        }
+        .onChange(of: showHiddenFiles, initial: true) { _, newValue in
+            treeModel.showHiddenFiles = newValue
+            treeModel.rebuildTree()
         }
         .onChange(of: sidebarFileURL) { _, newURL in
             if isFolderMode {
@@ -173,8 +178,6 @@ struct ContentView: View {
             sidebarFileURL = url
             if LanguageMap.isImage(url.pathExtension) {
                 viewMode = .preview
-            } else if LanguageMap.previewType(for: url.pathExtension) != nil {
-                viewMode = .split
             } else {
                 viewMode = .edit
             }
@@ -194,12 +197,12 @@ struct ContentView: View {
     private var editorArea: some View {
         switch viewMode {
         case .edit:
-            CodeEditorView(text: $document.text, language: detectedLanguage, editorState: editorState, wordWrap: wordWrap)
+            CodeEditorView(text: $document.text, language: detectedLanguage, editorState: editorState, wordWrap: wordWrap, showMiniMap: showMiniMap)
         case .preview:
             previewView
         case .split:
             HSplitView {
-                CodeEditorView(text: $document.text, language: detectedLanguage, editorState: editorState, wordWrap: wordWrap)
+                CodeEditorView(text: $document.text, language: detectedLanguage, editorState: editorState, wordWrap: wordWrap, showMiniMap: showMiniMap)
                     .frame(minWidth: 250)
                 previewView
                     .frame(minWidth: 250)
@@ -276,12 +279,6 @@ struct ContentView: View {
             .disabled(isFolderMode && sidebarFileURL == nil)
         }
 
-        ToolbarItem(placement: .automatic) {
-            Button(action: { wordWrap.toggle() }) {
-                Label("Word Wrap", systemImage: wordWrap ? "arrow.turn.down.left" : "arrow.right")
-            }
-            .help(wordWrap ? "Disable Word Wrap" : "Enable Word Wrap")
-        }
 
     }
 

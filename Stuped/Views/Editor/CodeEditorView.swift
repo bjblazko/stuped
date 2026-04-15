@@ -7,7 +7,8 @@ struct CodeEditorView: NSViewRepresentable {
     var language: String?
     var fontSize: CGFloat = 13
     var editorState: EditorState?
-    var wordWrap: Bool = true
+    var wordWrap: Bool = false
+    var showMiniMap: Bool = true
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -28,7 +29,22 @@ struct CodeEditorView: NSViewRepresentable {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(scrollView)
 
-        // Layout: gutter on left, scroll view fills rest
+        // Mini-map (right side)
+        let miniMap = MiniMapView()
+        miniMap.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(miniMap)
+        context.coordinator.miniMapView = miniMap
+
+        let mmWidthConstraint = miniMap.widthAnchor.constraint(equalToConstant: MiniMapView.width)
+        let mmHiddenConstraint = miniMap.widthAnchor.constraint(equalToConstant: 0)
+        mmWidthConstraint.isActive = showMiniMap
+        mmHiddenConstraint.isActive = !showMiniMap
+        context.coordinator.miniMapWidthConstraint = mmWidthConstraint
+        context.coordinator.miniMapHiddenConstraint = mmHiddenConstraint
+        context.coordinator.currentShowMiniMap = showMiniMap
+        miniMap.isHidden = !showMiniMap
+
+        // Layout: gutter on left, mini-map on right, scroll view fills rest
         NSLayoutConstraint.activate([
             gutter.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             gutter.topAnchor.constraint(equalTo: container.topAnchor),
@@ -36,9 +52,13 @@ struct CodeEditorView: NSViewRepresentable {
             gutter.widthAnchor.constraint(equalToConstant: gutter.gutterWidth),
 
             scrollView.leadingAnchor.constraint(equalTo: gutter.trailingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: miniMap.leadingAnchor),
             scrollView.topAnchor.constraint(equalTo: container.topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+
+            miniMap.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            miniMap.topAnchor.constraint(equalTo: container.topAnchor),
+            miniMap.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
 
         // Configure text view
@@ -75,8 +95,9 @@ struct CodeEditorView: NSViewRepresentable {
         editorState?.detectIndentation(in: text)
         editorState?.updateCursor(text: text, selectedRange: textView.selectedRange())
 
-        // Wire up gutter to text view
+        // Wire up gutter and mini-map to text view
         gutter.setup(textView: textView)
+        miniMap.setup(textView: textView, scrollView: scrollView as! NSScrollView)
 
         // Defer highlighting
         DispatchQueue.main.async {
@@ -112,6 +133,13 @@ struct CodeEditorView: NSViewRepresentable {
             context.coordinator.currentWordWrap = wordWrap
             Self.applyWordWrap(wordWrap, to: textView, scrollView: scrollView)
         }
+
+        if context.coordinator.currentShowMiniMap != showMiniMap {
+            context.coordinator.currentShowMiniMap = showMiniMap
+            context.coordinator.miniMapView?.isHidden = !showMiniMap
+            context.coordinator.miniMapHiddenConstraint?.isActive = !showMiniMap
+            context.coordinator.miniMapWidthConstraint?.isActive = showMiniMap
+        }
     }
 
     private static func applyWordWrap(_ wrap: Bool, to textView: NSTextView, scrollView: NSScrollView) {
@@ -135,9 +163,13 @@ struct CodeEditorView: NSViewRepresentable {
         var parent: CodeEditorView
         weak var textView: NSTextView?
         weak var gutterView: LineNumberGutterView?
+        weak var miniMapView: MiniMapView?
         var isUpdatingFromTextView = false
         var currentLanguage: String?
         var currentWordWrap: Bool = true
+        var currentShowMiniMap: Bool = true
+        var miniMapWidthConstraint: NSLayoutConstraint?
+        var miniMapHiddenConstraint: NSLayoutConstraint?
         var appearanceObservation: NSKeyValueObservation?
         private var highlighter: Highlighter?
         private var highlightWorkItem: DispatchWorkItem?
@@ -146,6 +178,7 @@ struct CodeEditorView: NSViewRepresentable {
             self.parent = parent
             self.currentLanguage = parent.language
             self.currentWordWrap = parent.wordWrap
+            self.currentShowMiniMap = parent.showMiniMap
         }
 
         deinit {
@@ -183,6 +216,7 @@ struct CodeEditorView: NSViewRepresentable {
         func textViewDidChangeSelection(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             parent.editorState?.updateCursor(text: textView.string, selectedRange: textView.selectedRange())
+            miniMapView?.needsDisplay = true
         }
 
         func textDidChange(_ notification: Notification) {
@@ -192,6 +226,7 @@ struct CodeEditorView: NSViewRepresentable {
             isUpdatingFromTextView = false
 
             parent.editorState?.updateCursor(text: textView.string, selectedRange: textView.selectedRange())
+            miniMapView?.needsDisplay = true
 
             highlightWorkItem?.cancel()
             let workItem = DispatchWorkItem { [weak self] in
@@ -241,6 +276,7 @@ struct CodeEditorView: NSViewRepresentable {
             textView.textStorage?.beginEditing()
             textView.textStorage?.setAttributedString(mutable)
             textView.textStorage?.endEditing()
+            miniMapView?.needsDisplay = true
 
             if let first = selectedRanges.first as? NSValue,
                first.rangeValue.location + first.rangeValue.length <= (textView.string as NSString).length {

@@ -4,9 +4,16 @@ import Foundation
 final class TabManager {
     var tabs: [TabItem] = []
     var activeTabID: TabItem.ID?
+    /// Tab IDs ordered from most-recently to least-recently accessed (index 0 = current).
+    var recentTabIDs: [TabItem.ID] = []
 
     var activeTab: TabItem? {
         tabs.first { $0.id == activeTabID }
+    }
+
+    /// Tabs sorted by most-recently accessed (most recent first).
+    var tabsByRecency: [TabItem] {
+        recentTabIDs.compactMap { id in tabs.first { $0.id == id } }
     }
 
     /// Opens a file: switches to it if already open, otherwise loads from disk and creates a new tab.
@@ -16,6 +23,7 @@ final class TabManager {
         if let existing = tabs.first(where: { $0.fileURL == url }) {
             guard activeTabID != existing.id else { return }
             activeTabID = existing.id
+            recordAccess(existing.id)
             NotificationCenter.default.post(
                 name: .stupedTabSwitched,
                 object: nil,
@@ -28,7 +36,17 @@ final class TabManager {
         let tab = TabItem(fileURL: url, text: text)
         tabs.append(tab)
         activeTabID = tab.id
-        // No notification — ContentView's onChange flow drives the render for new tabs.
+        recordAccess(tab.id)
+        NotificationCenter.default.post(
+            name: .stupedTabSwitched,
+            object: nil,
+            userInfo: ["url": url]
+        )
+    }
+
+    private func recordAccess(_ id: TabItem.ID) {
+        recentTabIDs.removeAll { $0 == id }
+        recentTabIDs.insert(id, at: 0)
     }
 
     func close(_ id: TabItem.ID) {
@@ -59,6 +77,7 @@ final class TabManager {
     func clearAll() {
         tabs.removeAll()
         activeTabID = nil
+        recentTabIDs.removeAll()
     }
 
     // MARK: - File loading

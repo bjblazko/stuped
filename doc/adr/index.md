@@ -13,3 +13,4 @@
 | [0009](0009-external-script-loading-for-wkwebview.md) | External Script Loading for Large JS in WKWebView | Accepted |
 | [0010](0010-in-window-tab-management.md) | In-Window Tab Management for Folder Mode | Accepted |
 | [0011](0011-view-mode-overlay.md) | View Mode Switcher as In-Editor Overlay | Accepted |
+| [0012](0012-minimap-two-pass-normalization.md) | Mini-Map Two-Pass Width Normalisation | Accepted |

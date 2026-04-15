@@ -9,6 +9,10 @@ Stuped is a native macOS code editor and file browser providing:
 - Text editing with syntax highlighting for 100+ languages
 - Live Markdown and HTML preview with Mermaid diagram support
 - File tree sidebar with real-time directory watching
+- In-window tab management for folder mode
+- Mini-map overview panel with syntax-colour bars, selection overlay, and click-to-scroll
+- Word wrap toggle (hard line breaks vs. unbounded horizontal scroll)
+- Recent-files command palette (Cmd+R) showing open tabs and macOS file history
 - Git branch and remote origin display
 - Path bar with clickable breadcrumb navigation
 
@@ -95,7 +99,7 @@ graph TD
     CV --> EA["Editor Area"]
     CV --> SBV["StatusBarView"]
 
-    EA --> CEV["CodeEditorView\n(NSTextView)"]
+    EA --> CEV["CodeEditorView\n(NSTextView + MiniMapView)"]
     EA --> MPV["MarkdownPreviewView\n(WKWebView)"]
 ```
 
@@ -244,6 +248,10 @@ See [`doc/adr/`](adr/) for detailed Architecture Decision Records:
 | [0006](adr/0006-no-app-sandbox.md) | No App Sandbox |
 | [0007](adr/0007-git-integration-via-process.md) | Git Integration via Process |
 | [0008](adr/0008-debounced-rendering.md) | Debounced Rendering |
+| [0009](adr/0009-external-script-loading-for-wkwebview.md) | External Script Loading for Large JS in WKWebView |
+| [0010](adr/0010-in-window-tab-management.md) | In-Window Tab Management for Folder Mode |
+| [0011](adr/0011-view-mode-overlay.md) | View Mode Switcher as In-Editor Overlay |
+| [0012](adr/0012-minimap-two-pass-normalization.md) | Mini-Map Two-Pass Width Normalisation |
 
 ## 10. Quality Requirements
 

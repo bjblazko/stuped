@@ -6,6 +6,10 @@ struct FolderBrowserView: View {
     @State private var tabManager = TabManager()
     private var folderState = FolderBrowserState.shared
 
+    @State private var showRecentFiles = false
+    @State private var recentFilesInitialIndex = 0
+    @State private var recentFilesCycleTrigger = 0
+
     private var windowTitle: String {
         if let selected = folderState.selectedFileURL {
             return selected.deletingLastPathComponent().lastPathComponent
@@ -33,16 +37,33 @@ struct FolderBrowserView: View {
     }
 
     var body: some View {
-        ContentView(
-            document: activeDocumentBinding,
-            fileURL: nil,
-            folderMode: true,
-            tabManager: tabManager,
-            onFileSelected: handleFileSelected,
-            onFileSaved: handleFileSaved
-        )
+        ZStack {
+            ContentView(
+                document: activeDocumentBinding,
+                fileURL: nil,
+                folderMode: true,
+                tabManager: tabManager,
+                onFileSelected: handleFileSelected,
+                onFileSaved: handleFileSaved
+            )
+            .onReceive(NotificationCenter.default.publisher(for: .stupedToggleRecentFiles)) { _ in
+                handleCmdE()
+            }
+
+            if showRecentFiles {
+                RecentFilesPopupView(
+                    tabManager: tabManager,
+                    isShowing: $showRecentFiles,
+                    initialSelectedIndex: recentFilesInitialIndex,
+                    cycleTrigger: recentFilesCycleTrigger,
+                    onSelect: handleFileSelected
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.97)))
+            }
+        }
+        .animation(.easeOut(duration: 0.12), value: showRecentFiles)
         .navigationTitle(windowTitle)
-        .onChange(of: folderState.folderURL) { newURL in
+        .onChange(of: folderState.folderURL) { _, newURL in
             if let url = newURL {
                 tabManager.clearAll()
                 loadFolder(url: url)
@@ -52,6 +73,16 @@ struct FolderBrowserView: View {
             if let url = folderState.folderURL {
                 loadFolder(url: url)
             }
+        }
+    }
+
+    private func handleCmdE() {
+        if showRecentFiles {
+            recentFilesCycleTrigger += 1
+        } else {
+            recentFilesInitialIndex = tabManager.recentTabIDs.count > 1 ? 1 : 0
+            recentFilesCycleTrigger = 0
+            showRecentFiles = true
         }
     }
 
@@ -75,4 +106,5 @@ struct FolderBrowserView: View {
 
 extension Notification.Name {
     static let stupedFolderOpened = Notification.Name("stupedFolderOpened")
+    static let stupedToggleRecentFiles = Notification.Name("stupedToggleRecentFiles")
 }

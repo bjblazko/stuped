@@ -13,6 +13,7 @@ Stuped is a native macOS application for viewing and editing text-based files wi
 | Active file | The file currently loaded in the editor (`activeFileURL`) |
 | Previewable | A file whose extension maps to a `PreviewType` (Markdown or HTML) |
 | View mode | One of Edit, Preview, or Split |
+| Dotfile | A file or directory whose name starts with `.`; hidden by default, shown via ⌘⇧H |
 
 ## High-Level Architecture
 
@@ -80,9 +81,11 @@ Stuped/
     PathBarView.swift           Breadcrumb path bar with git branch
     StatusBarView.swift         Bottom metadata bar
     TabBarView.swift            Horizontal tab strip for folder mode
+    RecentFilesPopupView.swift  Cmd+R floating recent-files popup (folder mode)
     Editor/
-      CodeEditorView.swift      NSTextView wrapper with highlighting
+      CodeEditorView.swift      NSTextView wrapper with highlighting, word wrap, mini-map wiring
       LineNumberGutterView.swift Line number gutter
+      MiniMapView.swift         Scaled document overview panel (right edge, 80pt)
     Preview/
       MarkdownPreviewView.swift WKWebView wrapper for Markdown/HTML
       ImagePreviewView.swift    Image viewer with metadata overlay

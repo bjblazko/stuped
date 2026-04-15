@@ -4,6 +4,7 @@
 
 - `Stuped/Views/Editor/CodeEditorView.swift`
 - `Stuped/Views/Editor/LineNumberGutterView.swift`
+- `Stuped/Views/Editor/MiniMapView.swift`
 
 ## Overview
 
@@ -33,8 +34,9 @@ The code editor wraps AppKit's `NSTextView` via `NSViewRepresentable`, adding sy
 ```
 NSView (container, autoresizing mask)
   +-- LineNumberGutterView (44pt width, pinned left)
-  +-- NSScrollView (fills remaining width)
-        +-- NSTextView
+  +-- NSScrollView (fills between gutter and mini-map)
+  |     +-- NSTextView
+  +-- MiniMapView (80pt width, pinned right; hidden when mini-map is off)
 ```
 
 ## Key Handling
@@ -109,14 +111,61 @@ A custom `NSView` subclass that draws line numbers.
 
 Both trigger `setNeedsDisplay(true)`.
 
+## Word Wrap
+
+Toggled via View > Toggle Word Wrap (⌘⇧↩). Implemented in `applyWordWrap(_:to:scrollView:)`:
+
+| Word Wrap | `containerSize.width` | `widthTracksTextView` | Horizontal scroller |
+|-----------|-----------------------|-----------------------|---------------------|
+| On | `scrollView.contentSize.width` | `true` | Hidden |
+| Off | `CGFloat.greatestFiniteMagnitude` | `false` | Visible |
+
+When word wrap is off the text container is effectively unbounded horizontally, allowing lines to extend beyond the visible area.
+
+## Mini-Map
+
+### File: `MiniMapView.swift`
+
+An `NSView` subclass drawn entirely in Core Graphics. Sits in a fixed 80pt-wide column on the right edge of the editor, toggled via View > Toggle Mini-Map (⌘⇧M).
+
+| Property | Value |
+|----------|-------|
+| Width | 80pt fixed (hidden: 0pt constraint) |
+| Coordinate system | Flipped (origin top-left) |
+| Max slot height | 2.5pt per logical line |
+| Line cap | 5000 logical lines |
+
+### Drawing Pipeline
+
+Each `draw(_:dirtyRect:)` call executes four passes:
+
+1. **Background & separator** — fills with the text view's background colour; draws a 0.5pt left separator.
+2. **Pass 1 — width normalisation** — enumerates all line fragments to find `maxLineWidth` (the widest logical line's `usedRect.width`). This is the normalization denominator, which correctly handles both word-wrap modes (including `CGFloat.greatestFiniteMagnitude` container widths).
+3. **Pass 2 — line bars** — for each logical-line-start fragment, draws one horizontal bar whose width is `usedRect.width / maxLineWidth × usableWidth`. Each bar is subdivided into coloured segments mirroring the text storage's `foregroundColor` attribute runs (syntax highlight colours at 75% alpha).
+4. **Selection overlay** — tints every line slot that overlaps the current text selection using `NSColor.selectedTextBackgroundColor` at 45% / 35% alpha (dark / light).
+5. **Viewport rect** — draws a semi-transparent overlay showing which portion of the document is currently visible.
+
+### Update Triggers
+
+| Event | Trigger |
+|-------|---------|
+| Scroll | `NSView.boundsDidChangeNotification` on the scroll view's clip view |
+| Text change | `miniMapView.needsDisplay = true` in `textDidChange(_:)` |
+| Selection change | `miniMapView.needsDisplay = true` in `textViewDidChangeSelection(_:)` |
+| Highlighting applied | `miniMapView.needsDisplay = true` after `textStorage.setAttributedString` |
+
+### Click / Drag Navigation
+
+Mouse events convert the click Y-coordinate to a fraction of `miniMapContentHeight` (= `logicalLineCount × slotHeight`) and scroll the text view to the corresponding position in the document.
+
 ## Coordinator
 
 The `Coordinator` class is the `NSTextViewDelegate` and manages:
 
 | Responsibility | Method |
 |----------------|--------|
-| Text changes | `textDidChange(_:)` -- updates binding, cursor state, schedules highlighting |
-| Selection changes | `textViewDidChangeSelection(_:)` -- updates `EditorState.updateCursor()` |
+| Text changes | `textDidChange(_:)` -- updates binding, cursor state, schedules highlighting, redraws mini-map |
+| Selection changes | `textViewDidChangeSelection(_:)` -- updates `EditorState.updateCursor()`, redraws mini-map |
 | Key commands | `textView(_:doCommandBy:)` -- Tab and Shift+Tab handling |
 | Appearance changes | `NSKeyValueObservation` on `NSApp.effectiveAppearance` |
 

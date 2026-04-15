@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-15
+
+### Added
+
+- Show Dot Files toggle (⌘⇧H) in the View menu reveals hidden files and directories (dotfiles such as `.env`, `.gitignore`, `.claude/`) in the file tree; state persists across sessions
+- Cmd+R in folder mode opens a floating "Recent Files" popup (command-palette style) showing open tabs sorted by recency and recently opened files from macOS history; type to filter, ↑/↓ to navigate, Enter or click to switch, Escape to dismiss. Pressing Cmd+R again while the popup is open cycles the selection down one row.
+- Mini-map panel on the right side of each editor showing a scaled-down overview of the document; click or drag to scroll. Toggle with View > Toggle Mini-Map (⌘⇧M).
+
+### Fixed
+
+- View mode no longer stays as Split/Preview when opening a non-previewable file in a new tab; it resets to Edit automatically
+- Mini-map bar widths were all collapsed to minimum when word wrap is off (caused by dividing by `CGFloat.greatestFiniteMagnitude`); bars now scale relative to the longest line in the document
+- Mini-map now shows a selection overlay (using the system selection colour) over lines covered by the current text selection, and redraws whenever the selection changes
+
 ## [0.2.0] - 2026-04-14
 
 ### Added

@@ -13,6 +13,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 struct StupedApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.openWindow) private var openWindow
+    @AppStorage("editor.wordWrap") private var wordWrap: Bool = false
+    @AppStorage("editor.showMiniMap") private var showMiniMap: Bool = true
+    @AppStorage("fileTree.showHiddenFiles") private var showHiddenFiles: Bool = false
 
     var body: some Scene {
         // Single file editing (Finder double-click, File > Open)
@@ -30,6 +33,20 @@ struct StupedApp: App {
                     openFolder()
                 }
                 .keyboardShortcut("O", modifiers: [.command, .shift])
+            }
+            CommandGroup(after: .toolbar) {
+                Button(showMiniMap ? "Disable Mini-Map" : "Enable Mini-Map") {
+                    showMiniMap.toggle()
+                }
+                .keyboardShortcut("m", modifiers: [.command, .shift])
+                Button(wordWrap ? "Disable Word Wrap" : "Enable Word Wrap") {
+                    wordWrap.toggle()
+                }
+                .keyboardShortcut("w", modifiers: [.command, .shift])
+                Button(showHiddenFiles ? "Hide Dot Files" : "Show Dot Files") {
+                    showHiddenFiles.toggle()
+                }
+                .keyboardShortcut("h", modifiers: [.command, .shift])
             }
             CommandGroup(after: .textEditing) {
                 Section {
@@ -73,6 +90,14 @@ struct StupedApp: App {
             FolderBrowserView()
         }
         .defaultSize(width: 900, height: 600)
+        .commands {
+            CommandGroup(after: .sidebar) {
+                Button("Recent Files") {
+                    NotificationCenter.default.post(name: .stupedToggleRecentFiles, object: nil)
+                }
+                .keyboardShortcut("r")
+            }
+        }
     }
 
     private static func performTextFinderAction(_ action: NSTextFinder.Action) {
