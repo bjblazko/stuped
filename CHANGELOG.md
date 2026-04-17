@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Global search (⌘⇧F): added **extension filter** field (`ext:`) inline in the search bar — type e.g. `swift` to narrow results to files with that extension.
+
+### Changed
+
+- Global search: default scope changed from **Contents** to **Both** (searches filenames and file contents simultaneously).
+- Global search: the three-segment scope control (Name / Contents / Both) is replaced by a macOS-native **popup button** (dropdown) in the search bar row. "Name" is now labelled **Filename**.
+
+### Fixed
+
+- Global search: first result is now immediately visible and highlighted when results arrive; previously the selection was invisible for the first several rows due to a missing initial scroll.
+- Global search: line numbers in the preview panel now use `.tertiary` foreground style for better contrast in dark mode (was `.quaternary`, nearly invisible).
+- View-mode overlay buttons (Edit / Split / Preview) no longer overlap the find bar (⌘F): the overlay shifts down dynamically by the exact height of the find bar and snaps back when it is dismissed.
+- CI build now uses Xcode 16.2 instead of 16.0, so the released app has modern sidebar and toolbar button styling on current macOS versions.
+
 ## [0.4.0] - 2026-04-15
 
 ### Fixed

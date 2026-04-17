@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var sidebarFileURL: URL?
     @State private var columnVisibility: NavigationSplitViewVisibility
     @State private var gitInfo: GitInfo?
+    @State private var findBarHeight: CGFloat = 0
     @AppStorage("editor.wordWrap") private var wordWrap: Bool = false
     @AppStorage("editor.showMiniMap") private var showMiniMap: Bool = true
     @AppStorage("fileTree.showHiddenFiles") private var showHiddenFiles: Bool = false
@@ -105,6 +106,7 @@ struct ContentView: View {
                     .overlay(alignment: .topTrailing) {
                         if isPreviewable && !isImageFile {
                             viewModeOverlay
+                                .padding(.top, viewMode == .edit ? findBarHeight : 0)
                                 .padding(.trailing, showMiniMap && viewMode == .edit ? MiniMapView.width : 0)
                         }
                     }
@@ -156,6 +158,12 @@ struct ContentView: View {
                 sidebarFileURL = nil
             }
         }
+        .onChange(of: treeModel.rootURL) { _, newURL in
+            // Keep FolderBrowserState in sync so global search always uses the
+            // currently displayed tree root, not the stale top-level project folder.
+            if isFolderMode { FolderBrowserState.shared.treeRootURL = newURL }
+        }
+        .onChange(of: viewMode) { _, _ in findBarHeight = 0 }
         .onChange(of: showHiddenFiles, initial: true) { _, newValue in
             treeModel.showHiddenFiles = newValue
             treeModel.rebuildTree()
@@ -197,7 +205,8 @@ struct ContentView: View {
     private var editorArea: some View {
         switch viewMode {
         case .edit:
-            CodeEditorView(text: $document.text, language: detectedLanguage, editorState: editorState, wordWrap: wordWrap, showMiniMap: showMiniMap)
+            CodeEditorView(text: $document.text, language: detectedLanguage, editorState: editorState, wordWrap: wordWrap, showMiniMap: showMiniMap,
+                           onFindBarHeightChanged: { findBarHeight = $0 })
         case .preview:
             previewView
         case .split:

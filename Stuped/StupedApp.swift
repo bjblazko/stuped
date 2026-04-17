@@ -131,8 +131,14 @@ class FolderBrowserState {
     var folderURL: URL?
     var selectedFileURL: URL?
 
+    /// The URL currently shown as the root of the sidebar tree.
+    /// Updated by ContentView whenever treeModel.rootURL changes via breadcrumb navigation.
+    /// Always use this (not folderURL) as the search scope.
+    var treeRootURL: URL?
+
     func openFolder(url: URL) {
-        self.folderURL = url
+        self.folderURL  = url
+        self.treeRootURL = url   // reset to project root on fresh open
         self.selectedFileURL = nil
     }
 }

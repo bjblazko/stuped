@@ -10,7 +10,6 @@ struct FolderBrowserView: View {
     @State private var recentFilesInitialIndex = 0
     @State private var recentFilesCycleTrigger = 0
 
-    @State private var showGlobalSearch = false
 
     private var windowTitle: String {
         if let selected = folderState.selectedFileURL {
@@ -52,7 +51,15 @@ struct FolderBrowserView: View {
                 handleCmdE()
             }
             .onReceive(NotificationCenter.default.publisher(for: .stupedToggleGlobalSearch)) { _ in
-                showGlobalSearch.toggle()
+                // Prefer the currently displayed tree root; fall back to the project root.
+                let searchRoot = FolderBrowserState.shared.treeRootURL
+                                 ?? FolderBrowserState.shared.folderURL
+                if let rootURL = searchRoot {
+                    GlobalSearchWindowManager.shared.toggle(
+                        rootURL: rootURL,
+                        onSelect: handleFileSelected
+                    )
+                }
             }
 
             if showRecentFiles {
@@ -66,19 +73,11 @@ struct FolderBrowserView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.97)))
             }
 
-            if showGlobalSearch, let rootURL = FolderBrowserState.shared.folderURL {
-                GlobalSearchPopupView(
-                    rootURL: rootURL,
-                    isShowing: $showGlobalSearch,
-                    onSelect: handleFileSelected
-                )
-                .transition(AnyTransition.opacity.combined(with: AnyTransition.scale(scale: 0.97)))
-            }
         }
         .animation(.easeOut(duration: 0.12), value: showRecentFiles)
-        .animation(.easeOut(duration: 0.12), value: showGlobalSearch)
         .navigationTitle(windowTitle)
         .onChange(of: folderState.folderURL) { _, newURL in
+            GlobalSearchWindowManager.shared.close()
             if let url = newURL {
                 tabManager.clearAll()
                 loadFolder(url: url)

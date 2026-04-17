@@ -9,6 +9,7 @@ struct CodeEditorView: NSViewRepresentable {
     var editorState: EditorState?
     var wordWrap: Bool = false
     var showMiniMap: Bool = true
+    var onFindBarHeightChanged: ((CGFloat) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -97,23 +98,32 @@ struct CodeEditorView: NSViewRepresentable {
 
         // Wire up gutter and mini-map to text view
         gutter.setup(textView: textView)
-        miniMap.setup(textView: textView, scrollView: scrollView as! NSScrollView)
+        let castScrollView = scrollView as! NSScrollView
+        miniMap.setup(textView: textView, scrollView: castScrollView)
 
         // Defer highlighting
         DispatchQueue.main.async {
             context.coordinator.setupHighlighter()
         }
 
-        // Watch dark/light mode
+        // Watch dark/light mode; also track find bar visibility via KVO
         let coordinator = context.coordinator
+        coordinator.scrollView = castScrollView
         coordinator.appearanceObservation = textView.observe(\.effectiveAppearance) { _, _ in
             coordinator.applyHighlighting()
+        }
+        coordinator.findBarObservation = castScrollView.observe(\.isFindBarVisible, options: [.new]) { [weak coordinator] sv, _ in
+            let height: CGFloat = sv.isFindBarVisible ? (sv.findBarView?.frame.height ?? 0) : 0
+            DispatchQueue.main.async {
+                coordinator?.parent.onFindBarHeightChanged?(height)
+            }
         }
 
         return container
     }
 
     func updateNSView(_ containerView: NSView, context: Context) {
+        context.coordinator.parent = self
         guard let textView = context.coordinator.textView else { return }
 
         if context.coordinator.isUpdatingFromTextView { return }
@@ -171,6 +181,8 @@ struct CodeEditorView: NSViewRepresentable {
         var miniMapWidthConstraint: NSLayoutConstraint?
         var miniMapHiddenConstraint: NSLayoutConstraint?
         var appearanceObservation: NSKeyValueObservation?
+        var findBarObservation: NSKeyValueObservation?
+        weak var scrollView: NSScrollView?
         private var highlighter: Highlighter?
         private var highlightWorkItem: DispatchWorkItem?
 
@@ -183,6 +195,7 @@ struct CodeEditorView: NSViewRepresentable {
 
         deinit {
             appearanceObservation?.invalidate()
+            findBarObservation?.invalidate()
         }
 
         func setupHighlighter() {
