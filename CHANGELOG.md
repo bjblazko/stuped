@@ -9,17 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Global search (⌘⇧F): added **extension filter** field (`ext:`) inline in the search bar — type e.g. `swift` to narrow results to files with that extension.
+- Global search (⌘⇧F): added **extension filter** field (`ext:`) inline in the search bar — type e.g. `swift` to narrow results to files with that extension; clear it to search all file types.
 
 ### Changed
 
+- Global search dialog is now a native **resizable NSPanel** with standard title bar, close button, drag-to-resize, and position/size memory across sessions. Previously it was a floating SwiftUI overlay that could not be resized.
+- Global search: results and preview are separated by a **draggable horizontal splitter** (VSplitView), so each pane can be resized independently.
+- Global search: **search scope always reflects the currently visible sidebar root**, not the stale top-level project folder — useful when breadcrumb-navigating into a subdirectory.
 - Global search: default scope changed from **Contents** to **Both** (searches filenames and file contents simultaneously).
 - Global search: the three-segment scope control (Name / Contents / Both) is replaced by a macOS-native **popup button** (dropdown) in the search bar row. "Name" is now labelled **Filename**.
+- Global search panel closes automatically when the user opens a different project folder.
 
 ### Fixed
 
+- Global search: dialog now opens at a usable default size (720 × 640 pt) on every machine and every launch, including the very first one.
+- Global search: search field reliably receives focus when the dialog opens.
+- Global search: results from a previously opened project no longer appear when switching to a different folder.
 - Global search: first result is now immediately visible and highlighted when results arrive; previously the selection was invisible for the first several rows due to a missing initial scroll.
-- Global search: line numbers in the preview panel now use `.tertiary` foreground style for better contrast in dark mode (was `.quaternary`, nearly invisible).
+- Global search: line numbers in the preview panel now use a higher-contrast foreground style, making them legible in dark mode.
 - View-mode overlay buttons (Edit / Split / Preview) no longer overlap the find bar (⌘F): the overlay shifts down dynamically by the exact height of the find bar and snaps back when it is dismissed.
 - CI build now uses Xcode 16.2 instead of 16.0, so the released app has modern sidebar and toolbar button styling on current macOS versions.
 

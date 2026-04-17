@@ -23,7 +23,7 @@ By [Hüpattl! Software](https://huepattl.de)
 - **Status bar** with cursor position, line count, indentation, line endings, and encoding
 - **Dark/light mode** support throughout, including preview themes
 - **Folder browsing** mode for exploring project directories
-- **Global file search** (Cmd+Shift+F) searches all files in the open tree by name, contents, or both
+- **Global file search** (Cmd+Shift+F) — a native resizable panel that searches all files in the open folder tree by filename, contents, or both simultaneously; an inline `ext:` field narrows results to a specific file extension; results and a line-level preview are shown in a draggable split view; navigate with ↑/↓, open with Enter, dismiss with Escape
 - **Binary file detection** (null-byte scanning in first 8 KB)
 
 ## Installation
@@ -83,7 +83,7 @@ Hover over each icon to see its tooltip. The overlay is hidden for plain source 
 |----------|--------|
 | Cmd+Shift+O | Open Folder |
 | Cmd+R | Recent Files popup |
-| Cmd+Shift+F | Global file search |
+| Cmd+Shift+F | Open / close global file search panel |
 | Cmd+Shift+M | Toggle mini-map |
 | Cmd+Shift+W | Toggle word wrap |
 | Cmd+Shift+H | Toggle hidden files |

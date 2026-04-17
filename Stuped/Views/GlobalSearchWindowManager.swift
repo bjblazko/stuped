@@ -7,9 +7,9 @@ import SwiftUI
 final class GlobalSearchWindowManager: NSObject {
     static let shared = GlobalSearchWindowManager()
 
-    private static let autosaveName = "GlobalSearchPanel4"
-    private static let defaultSize  = NSSize(width: 720, height: 640)
-    private static let minAcceptableHeight: CGFloat = 400
+    private static let autosaveName        = "GlobalSearchPanel5"
+    private static let defaultSize         = NSSize(width: 720, height: 640)
+    private static let minAcceptableHeight: CGFloat = 400  // guards against stale bad autosaves
 
     private var panel: NSPanel?
 
@@ -35,45 +35,38 @@ final class GlobalSearchWindowManager: NSObject {
             onSelect: onSelect
         )
         // Fresh NSHostingController each open so onAppear / key monitor fires correctly.
-        // sizingOptions = [] prevents SwiftUI from resizing the panel to its compact
-        // ideal size after we explicitly set the frame in the deferred block below.
+        // sizingOptions = [] stops SwiftUI from updating preferredContentSize on the
+        // panel. Combined with .frame(maxHeight: .infinity) in GlobalSearchPopupView,
+        // the hosting view reports "fill available space" as its ideal size, so
+        // AppKit never receives a signal to shrink the panel.
         let hc = NSHostingController(rootView: content)
         hc.sizingOptions = []
         p.contentViewController = hc
 
-        let wasVisible = p.isVisible
+        // Apply frame BEFORE makeKeyAndOrderFront so the panel appears at the right
+        // size immediately. With sizingOptions = [] nothing will override this.
+        if !p.isVisible {
+            let restored = p.setFrameUsingName(Self.autosaveName)
+            let frameIsUsable = p.frame.height >= Self.minAcceptableHeight
+            if !restored || !frameIsUsable {
+                var r = p.frame
+                r.size = NSSize(
+                    width:  Self.defaultSize.width,
+                    height: Self.defaultSize.height + p.titleBarHeight
+                )
+                p.setFrame(r, display: false)
+                p.center()
+            }
+            if p.frameAutosaveName.isEmpty {
+                p.setFrameAutosaveName(Self.autosaveName)
+            }
+        }
+
         p.makeKeyAndOrderFront(nil)
 
-        // Defer size + focus correction to the next run-loop pass so it fires
-        // after SwiftUI's layout has settled (which can shrink the window back
-        // to the view's compact ideal size, overriding setContentSize calls
-        // made synchronously before or right after makeKeyAndOrderFront).
+        // Focus must be deferred: makeFirstResponder only works once the window is key.
         DispatchQueue.main.async { [weak p] in
             guard let panel = p else { return }
-
-            if !wasVisible {
-                // Try to restore user's saved position/size. If none exists yet,
-                // or if the saved frame has a suspiciously small height (e.g. from
-                // a previous session where NSPanel collapsed to SwiftUI's compact
-                // ideal size before autosave), apply the default size and centre.
-                let restored = panel.setFrameUsingName(Self.autosaveName)
-                let frameIsUsable = panel.frame.height >= Self.minAcceptableHeight
-                if !restored || !frameIsUsable {
-                    var r = panel.frame
-                    r.size = NSSize(
-                        width:  Self.defaultSize.width,
-                        height: Self.defaultSize.height + panel.titleBarHeight
-                    )
-                    panel.setFrame(r, display: false)
-                    panel.center()
-                }
-                if panel.frameAutosaveName.isEmpty {
-                    panel.setFrameAutosaveName(Self.autosaveName)
-                }
-            }
-
-            // Directly focus the search field — more reliable than @FocusState
-            // which needs the window to already be key when it fires.
             if let tf = Self.firstTextField(in: panel.contentView) {
                 panel.makeFirstResponder(tf)
             }

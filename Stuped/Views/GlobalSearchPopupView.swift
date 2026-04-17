@@ -44,20 +44,27 @@ struct GlobalSearchPopupView: View {
         VStack(spacing: 0) {
             searchBar
             Divider()
-            if searchText.isEmpty {
-                emptyLabel("Type to search")
-            } else if isSearching && matches.isEmpty {
-                ProgressView().frame(maxWidth: .infinity).padding(20)
-            } else if matches.isEmpty {
-                emptyLabel("No results")
-            } else {
-                VSplitView {
-                    resultsList
-                        .frame(minHeight: 80)
-                    previewPanel
-                        .frame(minHeight: 60)
+            // The Group is always stretched to fill the panel's remaining space.
+            // Without this, the view's ideal height collapses to ~100 px in the
+            // empty/no-results states, which NSHostingView relays to AppKit and
+            // causes the NSPanel to shrink itself to that compact size.
+            Group {
+                if searchText.isEmpty {
+                    emptyLabel("Type to search")
+                } else if isSearching && matches.isEmpty {
+                    ProgressView().frame(maxWidth: .infinity).padding(20)
+                } else if matches.isEmpty {
+                    emptyLabel("No results")
+                } else {
+                    VSplitView {
+                        resultsList
+                            .frame(minHeight: 80)
+                        previewPanel
+                            .frame(minHeight: 60)
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onAppear {
             searchFocused = true
