@@ -97,19 +97,16 @@ struct ContentView: View {
                     systemImage: "doc.text",
                     description: Text("Select a file from the sidebar to view or edit it."))
             } else {
-                PathBarView(fileURL: activeFileURL, gitInfo: gitInfo) { url in
-                    navigateToPath(url)
+                PathBarView(fileURL: activeFileURL, gitInfo: gitInfo,
+                            onNavigate: { url in navigateToPath(url) }) {
+                    let active = isPreviewable && !isImageFile
+                    viewModePicker
+                        .opacity(active ? 1 : 0)
+                        .disabled(!active)
                 }
 
                 editorArea
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .overlay(alignment: .topTrailing) {
-                        if isPreviewable && !isImageFile {
-                            viewModeOverlay
-                                .padding(.top, viewMode == .edit ? findBarHeight : 0)
-                                .padding(.trailing, showMiniMap && viewMode == .edit ? MiniMapView.width : 0)
-                        }
-                    }
 
                 if viewMode != .preview && !isImageFile {
                     StatusBarView(editorState: editorState, language: detectedLanguage)
@@ -122,7 +119,14 @@ struct ContentView: View {
         Group {
             if isFolderMode {
                 NavigationSplitView(columnVisibility: $columnVisibility) {
-                    FileTreeSidebar(rootNode: treeModel.rootNode, selectedFileURL: sidebarBinding)
+                    FileTreeSidebar(
+                    rootNode: treeModel.rootNode,
+                    selectedFileURL: sidebarBinding,
+                    expandedURLs: Binding(
+                        get: { treeModel.expandedURLs },
+                        set: { treeModel.expandedURLs = $0 }
+                    )
+                )
                         .navigationSplitViewColumnWidth(min: 180, ideal: 240, max: 400)
                 } detail: {
                     detailContent
@@ -141,6 +145,7 @@ struct ContentView: View {
             toolbarContent
         }
         .frame(minWidth: 500, minHeight: 400)
+        .fullScreenOnZoom()
         .onAppear {
             setupFileTree()
             if isImageFile {
@@ -190,6 +195,19 @@ struct ContentView: View {
                 viewMode = .edit
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .stupedRevealInFileTree)) { notif in
+            guard isFolderMode else { return }
+            let url = (notif.userInfo?["url"] as? URL) ?? tabManager?.activeTab?.fileURL
+            guard let url else { return }
+            treeModel.expandToURL(url)
+            sidebarFileURL = url
+            columnVisibility = .all
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stupedSetViewMode)) { notif in
+            guard isPreviewable, let raw = notif.userInfo?["mode"] as? String,
+                  let mode = ViewMode(rawValue: raw) else { return }
+            viewMode = mode
+        }
     }
 
     private var sidebarBinding: Binding<URL?> {
@@ -237,33 +255,23 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - View mode overlay
+    // MARK: - View mode bar
 
-    private var viewModeOverlay: some View {
-        HStack(spacing: 1) {
-            viewModeButton(.edit,    icon: "doc.plaintext", tooltip: "Edit")
-            viewModeButton(.split,   icon: "rectangle.split.2x1", tooltip: "Split")
-            viewModeButton(.preview, icon: "eye",           tooltip: "Preview")
-        }
-        .padding(4)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 7))
-        .padding(10)
-    }
+    // MARK: - View mode picker
 
-    private func viewModeButton(_ mode: ViewMode, icon: String, tooltip: String) -> some View {
-        Button { viewMode = mode } label: {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .medium))
-                .frame(width: 26, height: 22)
-                .foregroundStyle(viewMode == mode ? .primary : .tertiary)
-                .background(
-                    viewMode == mode
-                        ? RoundedRectangle(cornerRadius: 5).fill(Color(nsColor: .controlBackgroundColor))
-                        : nil
-                )
+    private var viewModePicker: some View {
+        HStack(spacing: 0) {
+            Divider().frame(height: 12)
+            Picker("View Mode", selection: $viewMode) {
+                Image(systemName: "doc.plaintext").tag(ViewMode.edit)
+                Image(systemName: "rectangle.split.2x1").tag(ViewMode.split)
+                Image(systemName: "eye").tag(ViewMode.preview)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(width: 108)
+            .padding(.leading, 8)
         }
-        .buttonStyle(.plain)
-        .help(tooltip)
     }
 
     // MARK: - Toolbar
@@ -286,9 +294,64 @@ struct ContentView: View {
             }
             .help("Save (Cmd+S)")
             .disabled(isFolderMode && sidebarFileURL == nil)
+
+            Menu {
+                if isPreviewable && !isImageFile {
+                    Section("View Mode") {
+                        Button { viewMode = .edit } label: {
+                            if viewMode == .edit { Label("Edit", systemImage: "checkmark") }
+                            else { Text("Edit") }
+                        }
+                        Button { viewMode = .split } label: {
+                            if viewMode == .split { Label("Split", systemImage: "checkmark") }
+                            else { Text("Split") }
+                        }
+                        Button { viewMode = .preview } label: {
+                            if viewMode == .preview { Label("Preview", systemImage: "checkmark") }
+                            else { Text("Preview") }
+                        }
+                    }
+                }
+                Section("View") {
+                    Button { wordWrap.toggle() } label: {
+                        if wordWrap { Label("Word Wrap", systemImage: "checkmark") }
+                        else { Text("Word Wrap") }
+                    }
+                    Button { showMiniMap.toggle() } label: {
+                        if showMiniMap { Label("Mini-Map", systemImage: "checkmark") }
+                        else { Text("Mini-Map") }
+                    }
+                }
+                Section("File Tree") {
+                    Button { showHiddenFiles.toggle() } label: {
+                        if showHiddenFiles { Label("Show Dot Files", systemImage: "checkmark") }
+                        else { Text("Show Dot Files") }
+                    }
+                    if isFolderMode {
+                        Button("Reveal in File Tree") {
+                            guard let url = tabManager?.activeTab?.fileURL else { return }
+                            treeModel.expandToURL(url)
+                            sidebarFileURL = url
+                            columnVisibility = .all
+                        }
+                        .disabled(tabManager?.activeTab == nil)
+                    }
+                }
+                if isFolderMode {
+                    Section("Navigate") {
+                        Button("Recent Files") {
+                            NotificationCenter.default.post(name: .stupedToggleRecentFiles, object: nil)
+                        }
+                        Button("Search Files\u{2026}") {
+                            NotificationCenter.default.post(name: .stupedToggleGlobalSearch, object: nil)
+                        }
+                    }
+                }
+            } label: {
+                Label("View Options", systemImage: "slider.horizontal.3")
+            }
+            .help("View & Navigation Options")
         }
-
-
     }
 
     // MARK: - File Tree
@@ -414,3 +477,4 @@ struct ContentView: View {
         }
     }
 }
+

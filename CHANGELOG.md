@@ -9,9 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Green zoom button (traffic light) now enters **fullscreen** instead of maximising the window.
 - Global search (⌘⇧F): added **extension filter** field (`ext:`) inline in the search bar — type e.g. `swift` to narrow results to files with that extension; clear it to search all file types.
+- **Reveal in File Tree** (⌘⇧J): expands the sidebar to the active file's location in the project tree. Also available via right-click on any tab.
+- **View Options toolbar menu** (`slider.horizontal.3` icon): consolidates Word Wrap, Mini-Map, Show Dot Files, Reveal in File Tree, Recent Files, and Search Files into a single toolbar dropdown. Active toggles show a checkmark.
+- **View mode keyboard shortcuts** (Cmd+1 Edit, Cmd+2 Split, Cmd+3 Preview): available from the main View menu and the View Options toolbar menu; only active when a previewable file (Markdown, HTML) is open.
+- **Tab context menu**: right-clicking any tab now shows "Close Tab" and "Close Others" (closes all other open tabs).
 
 ### Changed
+
+- Dark mode editor background is now deep black (`#0a0a0a`) instead of the theme's blue-gray (`#282c34`).
+- View-mode switcher (Edit / Split / Preview) moved from a floating overlay on top of the editor to a **dedicated thin bar** between the path bar and the editor. The segmented control is now always accessible with a pointer cursor regardless of file content.
 
 - Global search dialog is now a native **resizable NSPanel** with standard title bar, close button, drag-to-resize, and position/size memory across sessions. Previously it was a floating SwiftUI overlay that could not be resized.
 - Global search: results and preview are separated by a **draggable horizontal splitter** (VSplitView), so each pane can be resized independently.
@@ -22,12 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- File tree now detects new and deleted files anywhere in the project tree, not just at the root level. Switched from single-directory kqueue watching to recursive `FSEventStream` (CoreServices).
 - Global search: dialog now opens at a usable default size (720 × 640 pt) on every machine and every launch, including the very first one.
 - Global search: search field reliably receives focus when the dialog opens.
 - Global search: results from a previously opened project no longer appear when switching to a different folder.
 - Global search: first result is now immediately visible and highlighted when results arrive; previously the selection was invisible for the first several rows due to a missing initial scroll.
 - Global search: line numbers in the preview panel now use a higher-contrast foreground style, making them legible in dark mode.
-- View-mode overlay buttons (Edit / Split / Preview) no longer overlap the find bar (⌘F): the overlay shifts down dynamically by the exact height of the find bar and snaps back when it is dismissed.
 - CI build now uses Xcode 16.2 instead of 16.0, so the released app has modern sidebar and toolbar button styling on current macOS versions.
 
 ## [0.4.0] - 2026-04-15

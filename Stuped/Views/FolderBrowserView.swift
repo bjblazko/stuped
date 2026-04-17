@@ -88,6 +88,7 @@ struct FolderBrowserView: View {
                 loadFolder(url: url)
             }
         }
+        .fullScreenOnZoom()
     }
 
     private func handleCmdE() {
@@ -122,4 +123,6 @@ extension Notification.Name {
     static let stupedFolderOpened = Notification.Name("stupedFolderOpened")
     static let stupedToggleRecentFiles = Notification.Name("stupedToggleRecentFiles")
     static let stupedToggleGlobalSearch = Notification.Name("stupedToggleGlobalSearch")
+    static let stupedRevealInFileTree = Notification.Name("stupedRevealInFileTree")
+    static let stupedSetViewMode = Notification.Name("stupedSetViewMode")
 }
