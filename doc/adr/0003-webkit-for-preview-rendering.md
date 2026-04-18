@@ -24,6 +24,10 @@ Use `WKWebView` with bundled JavaScript libraries:
 
 All JS/CSS is inlined into a single HTML string (no external loading, no network access). Updates are pushed via `WKWebView.evaluateJavaScript()` with debouncing.
 
+To mitigate the security risks of being an unsandboxed app, the `WKWebView` is configured with restricted file access:
+- `loadFileURL` is used with `allowingReadAccessTo` limited to the directory of the file being previewed, rather than the filesystem root.
+- Mermaid is configured with `securityLevel: 'strict'` to prevent malicious diagram definitions from executing arbitrary scripts.
+
 ## Consequences
 
 ### Positive

@@ -99,11 +99,11 @@ struct MarkdownPreviewView: NSViewRepresentable {
                 mermaid.initialize({
                     startOnLoad: false,
                     theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
-                    securityLevel: 'loose'
+                    securityLevel: 'strict'
                 });
 
                 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
-                    mermaid.initialize({ startOnLoad: false, theme: e.matches ? 'dark' : 'default', securityLevel: 'loose' });
+                    mermaid.initialize({ startOnLoad: false, theme: e.matches ? 'dark' : 'default', securityLevel: 'strict' });
                     if (window._lastMarkdown) { renderMarkdown(window._lastMarkdown); }
                 });
 
@@ -219,7 +219,8 @@ struct MarkdownPreviewView: NSViewRepresentable {
             let finalHTML = html.replacingOccurrences(of: "<head>", with: "<head>\n    \(baseTag)")
             do {
                 try finalHTML.write(to: tempFileURL, atomically: true, encoding: .utf8)
-                webView.loadFileURL(tempFileURL, allowingReadAccessTo: URL(fileURLWithPath: "/"))
+                // Restrict read access to only the directory containing the file
+                webView.loadFileURL(tempFileURL, allowingReadAccessTo: baseURL)
             } catch {
                 webView.loadHTMLString(html, baseURL: baseURL)
             }

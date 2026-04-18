@@ -19,7 +19,9 @@ Replace the single-directory kqueue watcher in `FileTreeModel` with `FSEventStre
 - `FSEventStreamCreate` with the root path watches the entire subtree recursively.
 - A 300 ms latency parameter coalesces rapid bursts (e.g., `git checkout`) into a single `rebuildTree()` call.
 - `FSEventStreamSetDispatchQueue(.main)` delivers events on the main queue, matching the previous behaviour.
-- `kFSEventStreamCreateFlagUseCFTypes` is set; `kFSEventStreamCreateFlagFileEvents` is intentionally omitted — directory-level granularity is sufficient since we call `rebuildTree()` regardless.
+- `kFSEventStreamCreateFlagUseCFTypes` and `kFSEventStreamCreateFlagFileEvents` are set. 
+- Path-aware rebuild: The model only triggers a tree rebuild if the change event occurred within an expanded directory or its immediate children, preventing unnecessary work for massive background file changes.
+
 
 ## Consequences
 

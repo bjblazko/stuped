@@ -10,6 +10,7 @@ class FileTreeModel {
     var expandedURLs: Set<URL> = []
 
     private var eventStream: FSEventStreamRef?
+    private let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .nameKey, .isHiddenKey]
 
     deinit {
         stopWatching()
@@ -17,7 +18,7 @@ class FileTreeModel {
 
     func loadDirectory(at url: URL) {
         self.rootURL = url
-        self.expandedURLs = []
+        self.expandedURLs = [url] // Start with root expanded
         rebuildTree()
         startWatching(url: url)
     }
@@ -31,6 +32,16 @@ class FileTreeModel {
             current = current.deletingLastPathComponent()
         }
         expandedURLs.insert(rootURL)
+        rebuildTree() // Refresh to show children of newly expanded folders
+    }
+
+    func toggleExpansion(for url: URL) {
+        if expandedURLs.contains(url) {
+            expandedURLs.remove(url)
+        } else {
+            expandedURLs.insert(url)
+        }
+        rebuildTree()
     }
 
     func rebuildTree() {
@@ -40,20 +51,25 @@ class FileTreeModel {
 
     // MARK: - Tree Building
 
+    /// Builds a node, but ONLY recurses into children if the node is expanded.
     private func buildNode(at url: URL) -> FileNode {
-        let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .nameKey, .isHiddenKey]
         let name = url.lastPathComponent
         let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
 
         if isDir {
-            let children = buildChildren(at: url, resourceKeys: resourceKeys)
+            let children: [FileNode]?
+            if expandedURLs.contains(url) || url == rootURL {
+                children = buildChildren(at: url)
+            } else {
+                children = nil // Lazy load: don't crawl non-expanded folders
+            }
             return FileNode(id: url, name: name, url: url, isDirectory: true, children: children)
         } else {
             return FileNode(id: url, name: name, url: url, isDirectory: false, children: nil)
         }
     }
 
-    private func buildChildren(at url: URL, resourceKeys: Set<URLResourceKey>) -> [FileNode] {
+    private func buildChildren(at url: URL) -> [FileNode] {
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: Array(resourceKeys),
@@ -93,9 +109,34 @@ class FileTreeModel {
             retain: nil, release: nil, copyDescription: nil
         )
 
-        let callback: FSEventStreamCallback = { _, info, _, _, _, _ in
-            guard let info else { return }
-            Unmanaged<FileTreeModel>.fromOpaque(info).takeUnretainedValue().rebuildTree()
+        // FSEvents callback
+        let callback: FSEventStreamCallback = { _, info, numEvents, eventPaths, _, _ in
+            guard let info = info else { return }
+            let model = Unmanaged<FileTreeModel>.fromOpaque(info).takeUnretainedValue()
+            
+            // Only rebuild if any of the changed paths are inside an expanded folder
+            // or if the change is to the expanded folder list itself.
+            // For simplicity and to avoid missing updates, we rebuild if any expanded path
+            // is a prefix of a changed path.
+            let paths = Unmanaged<CFArray>.fromOpaque(eventPaths).takeUnretainedValue() as! [String]
+            
+            var shouldRebuild = false
+            for path in paths {
+                let changedURL = URL(fileURLWithPath: path)
+                // If any expanded directory is an ancestor of the change, we need to refresh
+                if model.expandedURLs.contains(where: { expanded in
+                    changedURL.path.hasPrefix(expanded.path)
+                }) {
+                    shouldRebuild = true
+                    break
+                }
+            }
+            
+            if shouldRebuild {
+                DispatchQueue.main.async {
+                    model.rebuildTree()
+                }
+            }
         }
 
         let paths = [url.path] as CFArray
@@ -106,7 +147,7 @@ class FileTreeModel {
             paths,
             FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
             0.3,
-            FSEventStreamCreateFlags(kFSEventStreamCreateFlagUseCFTypes)
+            FSEventStreamCreateFlags(kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagFileEvents)
         ) else { return }
 
         FSEventStreamSetDispatchQueue(stream, .main)

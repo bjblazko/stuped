@@ -38,3 +38,4 @@ Hardened Runtime remains enabled for code signing integrity.
 - Cannot be distributed via the Mac App Store (sandbox is required).
 - Reduced security isolation: a compromised app has full user-level access.
 - Must be distributed via direct download, Homebrew, or similar.
+- **Critical Requirement:** Because sandboxing is disabled, the app must implement its own security boundaries for untrusted content (e.g., restricting `WKWebView` file access to the project/file scope and using strict security levels for third-party JS libraries).

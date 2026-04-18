@@ -1,15 +1,14 @@
 import SwiftUI
 
 struct FileTreeSidebar: View {
-    var rootNode: FileNode?
+    @Bindable var model: FileTreeModel
     @Binding var selectedFileURL: URL?
-    @Binding var expandedURLs: Set<URL>
 
     var body: some View {
         Group {
-            if let root = rootNode, let children = root.children {
+            if let root = model.rootNode, let children = root.children {
                 List(selection: $selectedFileURL) {
-                    FileTreeRows(nodes: children, expandedURLs: $expandedURLs)
+                    FileTreeRows(nodes: children, model: model)
                 }
                 .listStyle(.sidebar)
             } else {
@@ -22,13 +21,24 @@ struct FileTreeSidebar: View {
 
 private struct FileTreeRows: View {
     let nodes: [FileNode]
-    @Binding var expandedURLs: Set<URL>
+    let model: FileTreeModel
 
     var body: some View {
         ForEach(nodes) { node in
-            if let children = node.children {
-                DisclosureGroup(isExpanded: expandedBinding(for: node.url)) {
-                    FileTreeRows(nodes: children, expandedURLs: $expandedURLs)
+            if node.isDirectory {
+                DisclosureGroup(
+                    isExpanded: Binding(
+                        get: { model.expandedURLs.contains(node.url) },
+                        set: { _ in model.toggleExpansion(for: node.url) }
+                    )
+                ) {
+                    if let children = node.children {
+                        FileTreeRows(nodes: children, model: model)
+                    } else {
+                        // This state should ideally not be reached with lazy loading
+                        // if building children on expansion, but provides a fallback.
+                        ProgressView().controlSize(.small).padding(.leading)
+                    }
                 } label: {
                     nodeLabel(node)
                 }
@@ -37,13 +47,6 @@ private struct FileTreeRows: View {
                     .tag(node.url)
             }
         }
-    }
-
-    private func expandedBinding(for url: URL) -> Binding<Bool> {
-        Binding(
-            get: { expandedURLs.contains(url) },
-            set: { if $0 { expandedURLs.insert(url) } else { expandedURLs.remove(url) } }
-        )
     }
 
     private func nodeLabel(_ node: FileNode) -> some View {

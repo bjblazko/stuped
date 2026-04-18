@@ -122,14 +122,10 @@ struct ContentView: View {
             if isFolderMode {
                 NavigationSplitView(columnVisibility: $columnVisibility) {
                     FileTreeSidebar(
-                    rootNode: treeModel.rootNode,
-                    selectedFileURL: sidebarBinding,
-                    expandedURLs: Binding(
-                        get: { treeModel.expandedURLs },
-                        set: { treeModel.expandedURLs = $0 }
+                        model: treeModel,
+                        selectedFileURL: sidebarBinding
                     )
-                )
-                        .navigationSplitViewColumnWidth(min: 180, ideal: 240, max: 400)
+                    .navigationSplitViewColumnWidth(min: 180, ideal: 240, max: 400)
                 } detail: {
                     detailContent
                         .padding(.leading, 2)

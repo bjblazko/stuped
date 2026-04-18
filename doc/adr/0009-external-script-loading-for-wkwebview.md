@@ -21,7 +21,7 @@ Specifically:
 - **markdown-it** and **highlight.js** (~124-128 KB each): remain inline -- well within safe limits and avoids an extra file-access dependency.
 - **mermaid** (~3.2 MB): loaded via `<script src="file:///path/to/mermaid.min.js">` using the bundle URL from `Bundle.main.url(forResource:withExtension:subdirectory:)`.
 
-The WKWebView already uses `loadFileURL(_:allowingReadAccessTo:)` with access granted to `/`, so the external script reference resolves correctly.
+The WKWebView uses `loadFileURL(_:allowingReadAccessTo:)` with access granted to the directory of the file being previewed. This allows the internal script reference to resolve correctly while preventing access to the rest of the filesystem.
 
 ## Consequences
 
