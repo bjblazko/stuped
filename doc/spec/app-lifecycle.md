@@ -11,24 +11,31 @@ The app defines two scenes:
 ```swift
 DocumentGroup(newDocument: StupedDocument()) { file in
     ContentView(document: file.$document, fileURL: file.fileURL)
+        .windowFullScreenBehavior(.enabled)
 }
 ```
 
 - Handles files opened via Finder, File > Open, or File > New.
 - Each document gets its own window with its own `ContentView`.
-- Uses default launch behavior; the open/recent dialog is suppressed via `applicationShouldOpenUntitledFile` returning `true` (which creates a blank document on cold launch instead of showing the dialog).
+- Uses SwiftUI's native macOS full-screen interaction so the green traffic-light button enters full screen.
+- Uses custom launch behavior; the open/recent dialog is suppressed via `applicationShouldOpenUntitledFile` returning `false`, and `applicationDidFinishLaunching(_:)` creates a blank document window on cold launch when needed.
 
-### 2. Window (folder browsing)
+### 2. WindowGroup (folder browsing)
 
 ```swift
-Window("Stuped — Folder", id: "folder-browser") {
+WindowGroup("Stuped — Folder", id: "folder-browser", for: String.self) { _ in
     FolderBrowserView()
+        .windowFullScreenBehavior(.enabled)
+} defaultValue: {
+    "main"
 }
 .defaultSize(width: 900, height: 600)
 ```
 
 - Opened via Open Folder (Cmd+Shift+O).
-- Single shared window (not a WindowGroup).
+- Declared as a `WindowGroup` so it gets standard macOS window management, including native fullscreen behavior.
+- Reused as a single logical folder window by always opening the group with the same presentation value (`"main"`).
+- Uses SwiftUI's native macOS full-screen interaction so the green traffic-light button enters full screen.
 - `FolderBrowserView` owns a `TabManager` and passes an `activeDocumentBinding` to `ContentView` so the active tab's text is always displayed.
 
 ### 3. Window (About)
@@ -49,13 +56,14 @@ Window("About Stuped", id: "about") {
 class AppDelegate: NSObject, NSApplicationDelegate
 ```
 
-- `applicationShouldOpenUntitledFile(_:)`: returns `true`, which creates a blank document on cold launch instead of showing the open/recent dialog.
+- `applicationShouldOpenUntitledFile(_:)`: returns `false`, which suppresses the system open/recent dialog. `applicationDidFinishLaunching(_:)` then creates a blank document window on cold launch when no documents were opened.
 
 ## Launch Flow
 
 1. App starts, SwiftUI creates scenes.
-2. If no file is being opened (cold launch), `applicationShouldOpenUntitledFile` returns `true`, creating a blank editor window.
-3. If a file is being opened (e.g. from Finder), DocumentGroup handles it directly and opens the file in a new window.
+2. If no file is being opened (cold launch), `applicationShouldOpenUntitledFile` returns `false`, suppressing the system open/recent dialog.
+3. `applicationDidFinishLaunching(_:)` creates a blank editor window if no documents were opened by the system.
+4. If a file is being opened (e.g. from Finder), DocumentGroup handles it directly and opens the file in a new window.
 
 ## Single-File Mode vs Folder Mode
 
@@ -69,7 +77,7 @@ class AppDelegate: NSObject, NSApplicationDelegate
 
 ### Folder mode
 
-- Created by the `Window` scene via `FolderBrowserView`.
+- Created by the folder `WindowGroup` via `FolderBrowserView`.
 - `ContentView(document:fileURL:folderMode: true)` -- `isFolderMode = true`.
 - `activeFileURL` returns `sidebarFileURL` (selected in sidebar).
 - Sidebar visible by default (`.all`).
@@ -80,7 +88,7 @@ class AppDelegate: NSObject, NSApplicationDelegate
 1. User triggers Cmd+Shift+O.
 2. `StupedApp.openFolder()` shows `NSOpenPanel` for directory selection.
 3. On success: `FolderBrowserState.shared.openFolder(url:)` stores the URL.
-4. `openWindow(id: "folder-browser")` activates the folder-browser window.
+4. `openWindow(id:value:)` opens or re-activates the folder-browser window using the fixed presentation value `"main"`.
 5. `FolderBrowserView` observes `folderState.folderURL` change.
 6. Posts `Notification.Name.stupedFolderOpened` with `["url": url]`.
 7. `ContentView` receives the notification, calls `treeModel.loadDirectory(at:)`.

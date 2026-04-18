@@ -39,7 +39,7 @@ Stuped is a native macOS code editor and file browser providing:
 
 | Constraint | Rationale |
 |------------|-----------|
-| macOS 14+ | Observation framework requires macOS 14; Xcode 16 required |
+| macOS 15+ | Native SwiftUI full-screen window behavior requires macOS 15; Xcode 16.2 required |
 | Swift 5.9 | Required by HighlighterSwift and Observation framework |
 | No App Sandbox | Git subprocess execution and arbitrary file access |
 | No network access | All resources bundled; no telemetry or updates |

@@ -1,5 +1,14 @@
 import SwiftUI
 
+enum AppWindowID {
+    static let about = "about"
+    static let folderBrowser = "folder-browser"
+}
+
+enum AppWindowValue {
+    static let folderBrowserSingleton = "main"
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
         // Returning false suppresses the system open/recents panel that DocumentGroup
@@ -48,11 +57,12 @@ struct StupedApp: App {
         // Single file editing (Finder double-click, File > Open)
         DocumentGroup(newDocument: StupedDocument()) { file in
             ContentView(document: file.$document, fileURL: file.fileURL)
+                .windowFullScreenBehavior(.enabled)
         }
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("About Stuped") {
-                    openWindow(id: "about")
+                    openWindow(id: AppWindowID.about)
                 }
             }
             CommandGroup(after: .newItem) {
@@ -128,15 +138,18 @@ struct StupedApp: App {
         }
 
         // About
-        Window("About Stuped", id: "about") {
+        Window("About Stuped", id: AppWindowID.about) {
             AboutView()
         }
         .windowResizability(.contentSize)
         .defaultPosition(.center)
 
         // Folder browsing
-        Window("Stuped — Folder", id: "folder-browser") {
+        WindowGroup("Stuped — Folder", id: AppWindowID.folderBrowser, for: String.self) { _ in
             FolderBrowserView()
+                .windowFullScreenBehavior(.enabled)
+        } defaultValue: {
+            AppWindowValue.folderBrowserSingleton
         }
         .defaultSize(width: 900, height: 600)
         .commands {
@@ -174,7 +187,10 @@ struct StupedApp: App {
 
         if panel.runModal() == .OK, let url = panel.url {
             FolderBrowserState.shared.openFolder(url: url)
-            openWindow(id: "folder-browser")
+            openWindow(
+                id: AppWindowID.folderBrowser,
+                value: AppWindowValue.folderBrowserSingleton
+            )
         }
     }
 }

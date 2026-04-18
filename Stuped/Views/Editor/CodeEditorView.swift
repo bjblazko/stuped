@@ -78,9 +78,9 @@ struct CodeEditorView: NSViewRepresentable {
         let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
         textView.font = font
         textView.textColor = .textColor
-        textView.backgroundColor = .textBackgroundColor
         textView.insertionPointColor = .textColor
         textView.textContainerInset = NSSize(width: 4, height: 8)
+        Self.applyEditorColors(to: textView, scrollView: scrollView)
 
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.lineSpacing = 2
@@ -150,6 +150,19 @@ struct CodeEditorView: NSViewRepresentable {
             context.coordinator.miniMapHiddenConstraint?.isActive = !showMiniMap
             context.coordinator.miniMapWidthConstraint?.isActive = showMiniMap
         }
+
+        if let scrollView = textView.enclosingScrollView {
+            Self.applyEditorColors(to: textView, scrollView: scrollView)
+        }
+    }
+
+    private static func applyEditorColors(to textView: NSTextView, scrollView: NSScrollView) {
+        let isDark = textView.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let backgroundColor: NSColor = isDark ? .black : .textBackgroundColor
+        textView.backgroundColor = backgroundColor
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = backgroundColor
+        textView.insertionPointColor = isDark ? .white : .black
     }
 
     private static func applyWordWrap(_ wrap: Bool, to textView: NSTextView, scrollView: NSScrollView) {
@@ -253,17 +266,16 @@ struct CodeEditorView: NSViewRepresentable {
             guard let textView = textView,
                   let highlighter = highlighter else { return }
 
+            if let scrollView = scrollView {
+                CodeEditorView.applyEditorColors(to: textView, scrollView: scrollView)
+            }
+
             let code = textView.string
             guard !code.isEmpty, code.utf8.count < 1_000_000 else { return }
 
             let appearance = textView.effectiveAppearance
             let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             highlighter.setTheme(isDark ? "atom-one-dark" : "atom-one-light")
-
-            if let theme = highlighter.theme {
-                textView.backgroundColor = theme.themeBackgroundColour
-            }
-            textView.insertionPointColor = isDark ? .white : .black
 
             let highlighted: NSAttributedString?
             if let lang = currentLanguage {

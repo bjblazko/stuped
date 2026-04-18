@@ -24,7 +24,7 @@ The code editor wraps AppKit's `NSTextView` via `NSViewRepresentable`, adding sy
 | Uses find bar | Yes (incremental search) |
 | Font | System monospaced, 13pt |
 | Text color | `.textColor` (dynamic) |
-| Background | `.textBackgroundColor` (dynamic) |
+| Background | Light mode: `.textBackgroundColor`; dark mode: pure black (`#000000`) |
 | Insertion point color | `.textColor` (dynamic) |
 | Text container inset | 4pt horizontal, 8pt vertical |
 | Line spacing | 2pt (via `NSMutableParagraphStyle`) |
@@ -92,7 +92,7 @@ A custom `NSView` subclass that draws line numbers.
 | Font | Monospaced digit system font, (fontSize - 1)pt |
 | Color | `.secondaryLabelColor` |
 | Alignment | Right-aligned with 8pt right margin |
-| Background | `.controlBackgroundColor` |
+| Background | Matches the editor background |
 | Separator | 0.5pt line at right edge, `.separatorColor` |
 | Coordinate system | Flipped (origin at top-left) |
 

@@ -418,7 +418,10 @@ struct ContentView: View {
             // Single-file mode: open folder browser window
             let folderURL = isDir.boolValue ? url : url.deletingLastPathComponent()
             FolderBrowserState.shared.openFolder(url: folderURL)
-            openWindow(id: "folder-browser")
+            openWindow(
+                id: AppWindowID.folderBrowser,
+                value: AppWindowValue.folderBrowserSingleton
+            )
             return
         }
 
@@ -461,7 +464,10 @@ struct ContentView: View {
 
         if panel.runModal() == .OK, let url = panel.url {
             FolderBrowserState.shared.openFolder(url: url)
-            openWindow(id: "folder-browser")
+            openWindow(
+                id: AppWindowID.folderBrowser,
+                value: AppWindowValue.folderBrowserSingleton
+            )
         }
     }
 
@@ -484,4 +490,3 @@ struct ContentView: View {
         }
     }
 }
-

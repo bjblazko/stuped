@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Green zoom button (traffic light) now enters **fullscreen** instead of maximising the window.
+- Green zoom button (traffic light) in both file and folder windows now enters **fullscreen** instead of using standard zoom.
 - Global search (⌘⇧F): added **extension filter** field (`ext:`) inline in the search bar — type e.g. `swift` to narrow results to files with that extension; clear it to search all file types.
 - **Reveal in File Tree** (⌘⇧J): expands the sidebar to the active file's location in the project tree. Also available via right-click on any tab.
 - **View Options toolbar menu** (`slider.horizontal.3` icon): consolidates Word Wrap, Mini-Map, Show Dot Files, Reveal in File Tree, Recent Files, and Search Files into a single toolbar dropdown. Active toggles show a checkmark.
@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Dark mode editor background is now deep black (`#0a0a0a`) instead of the theme's blue-gray (`#282c34`).
+- Dark mode editor background is now pure black (`#000000`) instead of the theme's blue-gray (`#282c34`).
 - **Unified dark mode**: tab bar, path bar, status bar, sidebar, line-number gutter, global search panel, and recent-files popup are all pulled down to the same near-black (`#0a0a0a`) as the editor, with a single elevation step (`#171717`) for active tabs and selected rows. Shared `Color.appDarkBackground` / `NSColor.appDarkBackground` constants replace nine scattered hardcoded RGB values. System accent color continues to tint selected tabs, dirty indicators, and search highlights.
 - View-mode switcher (Edit / Split / Preview) moved from a floating overlay on top of the editor to a **dedicated thin bar** between the path bar and the editor. The segmented control is now always accessible with a pointer cursor regardless of file content.
 
@@ -32,7 +32,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Green zoom button (fullscreen enter/exit) in folder mode is now permanently immune to SwiftUI toolbar rebuilds via a self-canceling retry timer and appearance-change re-wiring in `WindowAppearanceController`.
 - Titlebar separator line removed in dark mode, eliminating the top-left corner seam between sidebar and toolbar in both windowed and fullscreen modes.
 - File tree now detects new and deleted files anywhere in the project tree, not just at the root level. Switched from single-directory kqueue watching to recursive `FSEventStream` (CoreServices).
 - Global search: dialog now opens at a usable default size (720 × 640 pt) on every machine and every launch, including the very first one.

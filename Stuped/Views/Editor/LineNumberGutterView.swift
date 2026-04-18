@@ -33,7 +33,7 @@ final class LineNumberGutterView: NSView {
               let scrollView = textView.enclosingScrollView else { return }
 
         // Background
-        NSColor.controlBackgroundColor.setFill()
+        textView.backgroundColor.setFill()
         bounds.fill()
 
         // Separator

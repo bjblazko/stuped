@@ -2,7 +2,7 @@ name: Stuped
 options:
   bundleIdPrefix: com.huepattl
   deploymentTarget:
-    macOS: "14.0"
+    macOS: "15.0"
   xcodeVersion: "16.2"
   generateEmptyDirectories: true
 
@@ -29,7 +29,7 @@ targets:
         MARKETING_VERSION: "0.4.0"
         CURRENT_PROJECT_VERSION: "4"
         SWIFT_VERSION: "5.9"
-        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
         INFOPLIST_FILE: Stuped/Info.plist
         CODE_SIGN_ENTITLEMENTS: Stuped/Stuped.entitlements
         GENERATE_INFOPLIST_FILE: false
