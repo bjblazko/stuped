@@ -15,10 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **View Options toolbar menu** (`slider.horizontal.3` icon): consolidates Word Wrap, Mini-Map, Show Dot Files, Reveal in File Tree, Recent Files, and Search Files into a single toolbar dropdown. Active toggles show a checkmark.
 - **View mode keyboard shortcuts** (Cmd+1 Edit, Cmd+2 Split, Cmd+3 Preview): available from the main View menu and the View Options toolbar menu; only active when a previewable file (Markdown, HTML) is open.
 - **Tab context menu**: right-clicking any tab now shows "Close Tab" and "Close Others" (closes all other open tabs).
+- **Appearance override** (View menu and View Options toolbar menu): choose *System*, *Light*, or *Dark* to override the macOS appearance setting per-app. Persists across launches.
 
 ### Changed
 
 - Dark mode editor background is now deep black (`#0a0a0a`) instead of the theme's blue-gray (`#282c34`).
+- **Unified dark mode**: tab bar, path bar, status bar, sidebar, line-number gutter, global search panel, and recent-files popup are all pulled down to the same near-black (`#0a0a0a`) as the editor, with a single elevation step (`#171717`) for active tabs and selected rows. Shared `Color.appDarkBackground` / `NSColor.appDarkBackground` constants replace nine scattered hardcoded RGB values. System accent color continues to tint selected tabs, dirty indicators, and search highlights.
 - View-mode switcher (Edit / Split / Preview) moved from a floating overlay on top of the editor to a **dedicated thin bar** between the path bar and the editor. The segmented control is now always accessible with a pointer cursor regardless of file content.
 
 - Global search dialog is now a native **resizable NSPanel** with standard title bar, close button, drag-to-resize, and position/size memory across sessions. Previously it was a floating SwiftUI overlay that could not be resized.
@@ -30,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Green zoom button (fullscreen enter/exit) in folder mode is now permanently immune to SwiftUI toolbar rebuilds via a self-canceling retry timer and appearance-change re-wiring in `WindowAppearanceController`.
+- Titlebar separator line removed in dark mode, eliminating the top-left corner seam between sidebar and toolbar in both windowed and fullscreen modes.
 - File tree now detects new and deleted files anywhere in the project tree, not just at the root level. Switched from single-directory kqueue watching to recursive `FSEventStream` (CoreServices).
 - Global search: dialog now opens at a usable default size (720 × 640 pt) on every machine and every launch, including the very first one.
 - Global search: search field reliably receives focus when the dialog opens.

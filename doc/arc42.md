@@ -15,6 +15,8 @@ Stuped is a native macOS code editor and file browser providing:
 - Recent-files command palette (Cmd+R) showing open tabs and macOS file history
 - Git branch and remote origin display
 - Path bar with clickable breadcrumb navigation
+- "Reveal in File Tree" (Cmd+Shift+J) to expand and highlight the active file in the sidebar
+- View Options toolbar menu consolidating all view toggles and navigation shortcuts
 
 ### Quality Goals
 
@@ -126,7 +128,7 @@ graph TD
     end
 
     ContentView --> NSV["NavigationSplitView"]
-    NSV --> Sidebar["FileTreeSidebar\n(rootNode, selectedFileURL)"]
+    NSV --> Sidebar["FileTreeSidebar\n(rootNode, selectedFileURL, expandedURLs)"]
     NSV --> Detail["Detail VStack"]
     Detail --> PBV["PathBarView\n(fileURL, gitInfo, onNavigate)"]
     Detail --> EditorArea["editorArea"]

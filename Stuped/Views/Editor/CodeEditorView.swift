@@ -261,9 +261,7 @@ struct CodeEditorView: NSViewRepresentable {
             highlighter.setTheme(isDark ? "atom-one-dark" : "atom-one-light")
 
             if let theme = highlighter.theme {
-                textView.backgroundColor = isDark
-                    ? NSColor(red: 0.04, green: 0.04, blue: 0.04, alpha: 1)
-                    : theme.themeBackgroundColour
+                textView.backgroundColor = theme.themeBackgroundColour
             }
             textView.insertionPointColor = isDark ? .white : .black
 

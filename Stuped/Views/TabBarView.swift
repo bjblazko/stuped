@@ -9,11 +9,15 @@ struct TabBarView: View {
                 ForEach(tabManager.tabs) { tab in
                     TabCell(
                         tab: tab,
-                        isActive: tab.id == tabManager.activeTabID
+                        isActive: tab.id == tabManager.activeTabID,
+                        hasOtherTabs: tabManager.tabs.count > 1
                     ) {
                         tabManager.open(url: tab.fileURL)
                     } onClose: {
                         tabManager.close(tab.id)
+                    } onCloseOthers: {
+                        let others = tabManager.tabs.filter { $0.id != tab.id }.map { $0.id }
+                        for id in others { tabManager.close(id) }
                     }
                     Divider().frame(height: 16)
                 }
@@ -29,8 +33,10 @@ struct TabBarView: View {
 private struct TabCell: View {
     let tab: TabItem
     let isActive: Bool
+    let hasOtherTabs: Bool
     let onSelect: () -> Void
     let onClose: () -> Void
+    let onCloseOthers: () -> Void
 
     @State private var isHovered = false
 
@@ -69,5 +75,18 @@ private struct TabCell: View {
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .onTapGesture(perform: onSelect)
+        .contextMenu {
+            Button("Close Tab", action: onClose)
+            Button("Close Others", action: onCloseOthers)
+                .disabled(!hasOtherTabs)
+            Divider()
+            Button("Reveal in File Tree") {
+                NotificationCenter.default.post(
+                    name: .stupedRevealInFileTree,
+                    object: nil,
+                    userInfo: ["url": tab.fileURL]
+                )
+            }
+        }
     }
 }

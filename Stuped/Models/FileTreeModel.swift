@@ -1,14 +1,15 @@
 import Foundation
 import Observation
+import CoreServices
 
 @Observable
 class FileTreeModel {
     var rootNode: FileNode?
     var rootURL: URL?
     var showHiddenFiles = false
+    var expandedURLs: Set<URL> = []
 
-    private var fileDescriptor: Int32 = -1
-    private var dispatchSource: DispatchSourceFileSystemObject?
+    private var eventStream: FSEventStreamRef?
 
     deinit {
         stopWatching()
@@ -16,8 +17,20 @@ class FileTreeModel {
 
     func loadDirectory(at url: URL) {
         self.rootURL = url
+        self.expandedURLs = []
         rebuildTree()
         startWatching(url: url)
+    }
+
+    /// Expands all ancestor directories from rootURL down to (but not including) targetURL.
+    func expandToURL(_ targetURL: URL) {
+        guard let rootURL else { return }
+        var current = targetURL.deletingLastPathComponent()
+        while current.path.hasPrefix(rootURL.path) && current != rootURL {
+            expandedURLs.insert(current)
+            current = current.deletingLastPathComponent()
+        }
+        expandedURLs.insert(rootURL)
     }
 
     func rebuildTree() {
@@ -74,33 +87,38 @@ class FileTreeModel {
     private func startWatching(url: URL) {
         stopWatching()
 
-        let fd = open(url.path, O_EVTONLY)
-        guard fd >= 0 else { return }
-        fileDescriptor = fd
-
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fd,
-            eventMask: [.write, .rename, .delete, .link],
-            queue: .main
+        var context = FSEventStreamContext(
+            version: 0,
+            info: Unmanaged.passUnretained(self).toOpaque(),
+            retain: nil, release: nil, copyDescription: nil
         )
 
-        source.setEventHandler { [weak self] in
-            self?.rebuildTree()
+        let callback: FSEventStreamCallback = { _, info, _, _, _, _ in
+            guard let info else { return }
+            Unmanaged<FileTreeModel>.fromOpaque(info).takeUnretainedValue().rebuildTree()
         }
 
-        source.setCancelHandler { [weak self] in
-            if let fd = self?.fileDescriptor, fd >= 0 {
-                close(fd)
-                self?.fileDescriptor = -1
-            }
-        }
+        let paths = [url.path] as CFArray
+        guard let stream = FSEventStreamCreate(
+            kCFAllocatorDefault,
+            callback,
+            &context,
+            paths,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+            0.3,
+            FSEventStreamCreateFlags(kFSEventStreamCreateFlagUseCFTypes)
+        ) else { return }
 
-        dispatchSource = source
-        source.resume()
+        FSEventStreamSetDispatchQueue(stream, .main)
+        FSEventStreamStart(stream)
+        eventStream = stream
     }
 
     private func stopWatching() {
-        dispatchSource?.cancel()
-        dispatchSource = nil
+        guard let stream = eventStream else { return }
+        FSEventStreamStop(stream)
+        FSEventStreamInvalidate(stream)
+        FSEventStreamRelease(stream)
+        eventStream = nil
     }
 }

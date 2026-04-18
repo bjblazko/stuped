@@ -15,3 +15,5 @@
 | [0011](0011-view-mode-overlay.md) | View Mode Switcher as In-Editor Overlay | Accepted |
 | [0012](0012-minimap-two-pass-normalization.md) | Mini-Map Two-Pass Width Normalisation | Accepted |
 | [0013](0013-per-tab-file-watching.md) | Per-Tab File Watching for External Change Detection | Accepted |
+| [0014](0014-explicit-disclosure-group-for-file-tree.md) | Explicit DisclosureGroup for File Tree Expansion | Accepted |
+| [0015](0015-fsevents-for-file-tree-watching.md) | FSEventStream for Recursive File Tree Watching | Accepted |

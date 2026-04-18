@@ -20,6 +20,7 @@ struct RecentFilesPopupView: View {
     @State private var selectedIndex: Int
     @State private var searchText = ""
     @FocusState private var searchFocused: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     init(
         tabManager: TabManager,
@@ -90,7 +91,10 @@ struct RecentFilesPopupView: View {
             Divider()
             fileList
         }
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(nsColor: .windowBackgroundColor).opacity(0.95))
+        )
         .overlay {
             RoundedRectangle(cornerRadius: 10)
                 .strokeBorder(.separator, lineWidth: 0.5)

@@ -22,6 +22,7 @@ struct GlobalSearchPopupView: View {
     let onSelect : (URL) -> Void
 
     @AppStorage("fileTree.showHiddenFiles") private var showHiddenFiles = false
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var searchText     = ""
     @State private var searchMode     : SearchMode = .both
@@ -84,6 +85,7 @@ struct GlobalSearchPopupView: View {
         .task(id: searchText + searchMode.rawValue + extFilter + rootURL.path) {
             await performSearch()
         }
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     // MARK: - Search bar

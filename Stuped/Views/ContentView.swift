@@ -14,7 +14,9 @@ struct ContentView: View {
     @AppStorage("editor.wordWrap") private var wordWrap: Bool = false
     @AppStorage("editor.showMiniMap") private var showMiniMap: Bool = true
     @AppStorage("fileTree.showHiddenFiles") private var showHiddenFiles: Bool = false
+    @AppStorage("app.appearance") private var appearanceRaw: String = AppearancePreference.system.rawValue
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.colorScheme) private var colorScheme
 
     /// When true, selecting a file in the sidebar loads it into the editor
     /// (replacing the current document text). When false (DocumentGroup mode),
@@ -130,6 +132,7 @@ struct ContentView: View {
                         .navigationSplitViewColumnWidth(min: 180, ideal: 240, max: 400)
                 } detail: {
                     detailContent
+                        .padding(.leading, 2)
                 }
                 .background {
                     Button("") { saveCurrentFile() }
@@ -145,7 +148,6 @@ struct ContentView: View {
             toolbarContent
         }
         .frame(minWidth: 500, minHeight: 400)
-        .fullScreenOnZoom()
         .onAppear {
             setupFileTree()
             if isImageFile {
@@ -320,6 +322,11 @@ struct ContentView: View {
                     Button { showMiniMap.toggle() } label: {
                         if showMiniMap { Label("Mini-Map", systemImage: "checkmark") }
                         else { Text("Mini-Map") }
+                    }
+                    Picker("Appearance", selection: $appearanceRaw) {
+                        ForEach(AppearancePreference.allCases) { pref in
+                            Text(pref.label).tag(pref.rawValue)
+                        }
                     }
                 }
                 Section("File Tree") {

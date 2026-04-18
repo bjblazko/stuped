@@ -88,7 +88,6 @@ struct FolderBrowserView: View {
                 loadFolder(url: url)
             }
         }
-        .fullScreenOnZoom()
     }
 
     private func handleCmdE() {

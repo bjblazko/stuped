@@ -79,14 +79,20 @@ An `@Observable` class that builds and watches a directory tree.
 | `rootNode` | `FileNode?` | Root of the tree |
 | `rootURL` | `URL?` | Root directory path |
 | `showHiddenFiles` | `Bool` | Include hidden files (default: `false`) |
+| `expandedURLs` | `Set<URL>` | Directory URLs currently expanded in the sidebar |
 
 ### Building the Tree
 
 `loadDirectory(at:)`:
 
 1. Stores the `rootURL`.
-2. Calls `rebuildTree()` to build `rootNode` recursively.
-3. Calls `startWatching(url:)` to monitor changes.
+2. Resets `expandedURLs` to `[]` (fresh open starts fully collapsed).
+3. Calls `rebuildTree()` to build `rootNode` recursively.
+4. Calls `startWatching(url:)` to monitor changes.
+
+`expandToURL(_ targetURL: URL)`:
+
+Adds all ancestor directories between `rootURL` and `targetURL` (inclusive of `rootURL`) to `expandedURLs`. Used by "Reveal in File Tree" to programmatically expand the path to a given file.
 
 `buildNode(at:)`:
 
@@ -103,29 +109,40 @@ An `@Observable` class that builds and watches a directory tree.
 
 ### File Watching
 
-Uses Darwin kqueue via `DispatchSource.makeFileSystemObjectSource`:
+Uses `FSEventStream` (CoreServices) for recursive directory watching (ADR-0015):
 
-1. Opens the directory with `open(path, O_EVTONLY)`.
-2. Monitors events: `.write`, `.rename`, `.delete`, `.link`.
-3. On any event: calls `rebuildTree()` on the main queue.
-4. On cancel: closes the file descriptor.
-5. `stopWatching()` cancels the dispatch source and is called in `deinit` and before starting a new watch.
+1. `FSEventStreamCreate` is called with the root URL path, a 300 ms latency, and `kFSEventStreamCreateFlagUseCFTypes`.
+2. The stream is scheduled on `DispatchQueue.main` via `FSEventStreamSetDispatchQueue`.
+3. On any event (file/directory created, renamed, deleted, modified anywhere in the tree): calls `rebuildTree()`.
+4. `stopWatching()` stops, invalidates, and releases the stream; called in `deinit` and before starting a new watch.
+
+The 300 ms latency coalesces rapid bursts (e.g., `git checkout` touching many files) into a single `rebuildTree()` call.
 
 ### Limitations
 
-- Watches only the root directory, not subdirectories.
 - Rebuilds the entire tree on any change (no incremental updates).
-- Does not debounce rapid file system events.
+- `expandedURLs` is reset to `[]` when `loadDirectory(at:)` is called (fresh folder open starts collapsed).
 
-> **See also:** `TabManager` uses the same kqueue/DispatchSource pattern to watch individual open files and reload their content when an external process writes to them (ADR-0013).
+> **See also:** `TabManager` uses kqueue/DispatchSource to watch individual *open* files and reload their content when an external process writes to them (ADR-0013). The two watching mechanisms serve different purposes and coexist.
 
 ## FileTreeSidebar
 
-A SwiftUI `List` with `.sidebar` style.
+A SwiftUI `List` with `.sidebar` style rendered via explicit `DisclosureGroup` expansion.
+
+### Inputs
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `rootNode` | `FileNode?` | Tree root from `FileTreeModel` |
+| `selectedFileURL` | `Binding<URL?>` | Currently selected file |
+| `expandedURLs` | `Binding<Set<URL>>` | Directories currently expanded |
 
 ### Behavior
 
-- Displays `rootNode.children` using SwiftUI's `List(_:children:selection:)` for hierarchical display.
-- Each row renders a custom `Label` with `Text(node.name)` and a tinted `Image(systemName: node.iconName).foregroundStyle(node.iconColor)`.
-- Selection binding: `@Binding selectedFileURL: URL?`, tagged with `node.url`.
+- Displays `rootNode.children` in a `List(selection:)` using a recursive private view `FileTreeRows`.
+- Each directory node is rendered as a `DisclosureGroup` whose `isExpanded` binding reads from and writes to `expandedURLs`. User clicks update the set directly; programmatic expansion (e.g., "Reveal in File Tree") updates it via `FileTreeModel.expandToURL(_:)`.
+- Each file node is rendered as a `Label` with `.tag(node.url)` for selection.
+- Each label shows `Text(node.name)` and a tinted `Image(systemName: node.iconName).foregroundStyle(node.iconColor)`.
 - Shows `ContentUnavailableView` if no root node or empty children.
+
+> **ADR-0014**: The sidebar switched from `List(_:children:selection:)` (auto-managed expansion) to explicit `DisclosureGroup` to support programmatic expansion for the "Reveal in File Tree" feature.

@@ -24,6 +24,8 @@ By [Hüpattl! Software](https://huepattl.de)
 - **Dark/light mode** support throughout, including preview themes
 - **Folder browsing** mode for exploring project directories
 - **Global file search** (Cmd+Shift+F) — a native resizable panel that searches all files in the open folder tree by filename, contents, or both simultaneously; an inline `ext:` field narrows results to a specific file extension; results and a line-level preview are shown in a draggable split view; navigate with ↑/↓, open with Enter, dismiss with Escape
+- **Reveal in File Tree** (Cmd+Shift+J) — expands and highlights the active file's node in the sidebar; useful after opening a file from search or recent files. Also accessible via right-click on any tab.
+- **View Options toolbar menu** — a single `slider.horizontal.3` toolbar button opens a dropdown with all view toggles (Word Wrap, Mini-Map, Show Dot Files) and navigation shortcuts (Reveal in File Tree, Recent Files, Search Files); active toggles show a checkmark
 - **Binary file detection** (null-byte scanning in first 8 KB)
 
 ## Installation
@@ -84,6 +86,8 @@ Hover over each icon to see its tooltip. The overlay is hidden for plain source 
 | Cmd+Shift+O | Open Folder |
 | Cmd+R | Recent Files popup |
 | Cmd+Shift+F | Open / close global file search panel |
+| Cmd+1 / 2 / 3 | Switch to Edit / Split / Preview mode (previewable files only) |
+| Cmd+Shift+J | Reveal active file in File Tree |
 | Cmd+Shift+M | Toggle mini-map |
 | Cmd+Shift+W | Toggle word wrap |
 | Cmd+Shift+H | Toggle hidden files |

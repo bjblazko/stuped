@@ -1,13 +1,37 @@
 import SwiftUI
 import AppKit
 
-struct PathBarView: View {
+struct PathBarView<Trailing: View>: View {
     var fileURL: URL?
     var gitInfo: GitInfo?
     var onNavigate: ((URL) -> Void)?
+    private let trailing: Trailing
+
+    /// No trailing content.
+    init(fileURL: URL?, gitInfo: GitInfo?, onNavigate: ((URL) -> Void)? = nil)
+        where Trailing == EmptyView
+    {
+        self.fileURL = fileURL
+        self.gitInfo = gitInfo
+        self.onNavigate = onNavigate
+        self.trailing = EmptyView()
+    }
+
+    /// With trailing content (e.g. a view-mode picker).
+    init(fileURL: URL?, gitInfo: GitInfo?, onNavigate: ((URL) -> Void)? = nil,
+         @ViewBuilder trailing: () -> Trailing)
+    {
+        self.fileURL = fileURL
+        self.gitInfo = gitInfo
+        self.onNavigate = onNavigate
+        self.trailing = trailing()
+    }
+
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         HStack(spacing: 0) {
+            // Breadcrumbs — scrolls horizontally, takes all remaining space
             if let url = fileURL {
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -24,9 +48,10 @@ struct PathBarView: View {
                     }
                 }
             } else {
-                Spacer()
+                Spacer(minLength: 0)
             }
 
+            // Git branch badge
             if let branch = gitInfo?.branchName {
                 HStack(spacing: 4) {
                     Divider().frame(height: 12)
@@ -41,10 +66,13 @@ struct PathBarView: View {
                         .lineLimit(1)
                 }
                 .help(gitInfo?.remoteURL ?? "No remote configured")
-                .padding(.trailing, 12)
             }
+
+            // Trailing slot (e.g. view-mode picker)
+            trailing
         }
         .padding(.vertical, 4)
+        .padding(.trailing, 6)
         .background(.bar)
         .overlay(alignment: .bottom) {
             Divider()

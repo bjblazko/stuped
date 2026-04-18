@@ -2,10 +2,36 @@ import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
-        // Return true so cold launches create a blank editor window
-        // instead of showing the open/recent dialog.
-        // File-open requests from Finder are handled by DocumentGroup directly.
-        true
+        // Returning false suppresses the system open/recents panel that DocumentGroup
+        // shows on cold launch in macOS 14+. We create the blank window ourselves
+        // in applicationDidFinishLaunching if no file was provided.
+        false
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        AppearancePreference.apply()
+        NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: UserDefaults.standard,
+            queue: .main
+        ) { _ in AppearancePreference.apply() }
+
+        // Finder-initiated opens arrive via application(_:openFile:) before this
+        // point, so documents will already be populated. If the list is empty, this
+        // is a cold launch with no file argument — open a blank editor window.
+        DispatchQueue.main.async {
+            if NSDocumentController.shared.documents.isEmpty {
+                NSDocumentController.shared.newDocument(nil)
+            }
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        // Clicking the Dock icon when all windows are closed should open a blank editor.
+        if !hasVisibleWindows {
+            NSDocumentController.shared.newDocument(nil)
+        }
+        return true
     }
 }
 
@@ -16,6 +42,7 @@ struct StupedApp: App {
     @AppStorage("editor.wordWrap") private var wordWrap: Bool = false
     @AppStorage("editor.showMiniMap") private var showMiniMap: Bool = true
     @AppStorage("fileTree.showHiddenFiles") private var showHiddenFiles: Bool = false
+    @AppStorage("app.appearance") private var appearanceRaw: String = AppearancePreference.system.rawValue
 
     var body: some Scene {
         // Single file editing (Finder double-click, File > Open)
@@ -35,6 +62,28 @@ struct StupedApp: App {
                 .keyboardShortcut("O", modifiers: [.command, .shift])
             }
             CommandGroup(after: .toolbar) {
+                Picker("Appearance", selection: $appearanceRaw) {
+                    ForEach(AppearancePreference.allCases) { pref in
+                        Text(pref.label).tag(pref.rawValue)
+                    }
+                }
+                Divider()
+                Button("Edit Mode") {
+                    NotificationCenter.default.post(
+                        name: .stupedSetViewMode, object: nil, userInfo: ["mode": "Edit"])
+                }
+                .keyboardShortcut("1")
+                Button("Split View") {
+                    NotificationCenter.default.post(
+                        name: .stupedSetViewMode, object: nil, userInfo: ["mode": "Split"])
+                }
+                .keyboardShortcut("2")
+                Button("Preview") {
+                    NotificationCenter.default.post(
+                        name: .stupedSetViewMode, object: nil, userInfo: ["mode": "Preview"])
+                }
+                .keyboardShortcut("3")
+                Divider()
                 Button(showMiniMap ? "Disable Mini-Map" : "Enable Mini-Map") {
                     showMiniMap.toggle()
                 }
@@ -101,6 +150,11 @@ struct StupedApp: App {
                     NotificationCenter.default.post(name: .stupedToggleGlobalSearch, object: nil)
                 }
                 .keyboardShortcut("f", modifiers: [.command, .shift])
+
+                Button("Reveal in File Tree") {
+                    NotificationCenter.default.post(name: .stupedRevealInFileTree, object: nil)
+                }
+                .keyboardShortcut("j", modifiers: [.command, .shift])
             }
         }
     }
