@@ -25,7 +25,7 @@ Preview rendering handles three content types: Markdown, HTML, and images.
 
 ### Markdown (`.markdown`)
 
-The initial HTML page is built by `buildMarkdownHTML(_:)` which inlines all JavaScript and CSS resources into a single self-contained HTML document:
+The initial HTML page is built by `buildMarkdownHTML(_:)` which embeds all JavaScript and CSS resources into a single self-contained HTML document:
 
 **Inlined resources:**
 
@@ -33,7 +33,7 @@ The initial HTML page is built by `buildMarkdownHTML(_:)` which inlines all Java
 |----------|---------|
 | `markdown-it.min.js` | Markdown-to-HTML parser |
 | `highlight.min.js` | Syntax highlighting for fenced code blocks |
-| `mermaid.min.js` | Diagram rendering for `mermaid` code blocks |
+| `mermaid.min.js` | Diagram rendering for `mermaid` code blocks (embedded as a `data:` script URL so preview still works under restricted file access) |
 | `preview-styles.css` | GitHub-style typography and layout |
 | `hljs-github.css` | Light mode code theme |
 | `hljs-github-dark.css` | Dark mode code theme (via `prefers-color-scheme: dark` media query) |
@@ -102,11 +102,13 @@ Updates are debounced at **300ms** via `DispatchWorkItem` on the main queue.
 2. Falls back to `Bundle.main.url(forResource:withExtension:)`.
 3. Returns empty string if not found.
 
+`dataURL(for:mimeType:)` base64-encodes bundled text resources that need to be referenced as script URLs without relying on bundle `file://` access from the web content process.
+
 ## Base URL for Local Images
 
-The `fileURL` parameter is used to derive a `baseURL` (the file's parent directory). To grant the WKWebView web content process read access to local image files, the generated HTML is written to a temporary file and loaded via `loadFileURL(_:allowingReadAccessTo:)` instead of `loadHTMLString`. A `<base href="...">` tag pointing to the markdown file's parent directory is injected into the HTML `<head>` so that relative image paths (e.g. `![](./images/photo.png)`) resolve correctly against the file's location — not the temp file's location.
+The `fileURL` parameter is used to derive a `baseURL` (the file's parent directory). To grant the WKWebView web content process read access to local image files, the generated HTML is written to a hidden temporary HTML file inside that directory and loaded via `loadFileURL(_:allowingReadAccessTo:)` instead of `loadHTMLString`. A `<base href="...">` tag pointing to the markdown file's parent directory is injected into the HTML `<head>` so that relative image paths (e.g. `![](./images/photo.png)`) resolve correctly against the file's location.
 
-Each Coordinator owns a unique temp file (UUID-based name in `NSTemporaryDirectory`) that is cleaned up on deallocation. When `baseURL` is nil (unsaved documents), the view falls back to `loadHTMLString` without file access.
+Each Coordinator owns a unique hidden temp file name that is created inside the current `baseURL` directory and cleaned up when the preview moves to another directory or deallocates. When `baseURL` is nil (unsaved documents), the view falls back to `loadHTMLString` without file access.
 
 When the user switches to a file in a different directory, the coordinator detects the `baseURL` change and performs a full page reload (rather than just a JavaScript update) to establish the new base and file-access grant.
 

@@ -139,9 +139,9 @@ A SwiftUI `List` with `.sidebar` style rendered via explicit `DisclosureGroup` e
 
 ### Behavior
 
-- Displays `rootNode.children` in a `List(selection:)` using a recursive private view `FileTreeRows`.
-- Each directory node is rendered as a `DisclosureGroup` whose `isExpanded` binding reads from and writes to `expandedURLs`. User clicks update the set directly; programmatic expansion (e.g., "Reveal in File Tree") updates it via `FileTreeModel.expandToURL(_:)`.
-- Each file node is rendered as a `Label` with `.tag(node.url)` for selection.
+- Displays `rootNode.children` in a `.sidebar` `List` using a recursive private view `FileTreeRows`.
+- Each directory node is rendered as a `DisclosureGroup` whose `isExpanded` binding reads from and writes to `expandedURLs`. Clicking a folder expands/collapses it without entering the editor-tab flow. Programmatic expansion (e.g., "Reveal in File Tree") updates the set via `FileTreeModel.expandToURL(_:)`.
+- Each file node is rendered as a tappable `Label`; tapping it updates `selectedFileURL`, which drives folder-mode tab opening in `ContentView`.
 - Each label shows `Text(node.name)` and a tinted `Image(systemName: node.iconName).foregroundStyle(node.iconColor)`.
 - Shows `ContentUnavailableView` if no root node or empty children.
 

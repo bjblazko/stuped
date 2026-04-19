@@ -7,8 +7,12 @@ struct FileTreeSidebar: View {
     var body: some View {
         Group {
             if let root = model.rootNode, let children = root.children {
-                List(selection: $selectedFileURL) {
-                    FileTreeRows(nodes: children, model: model)
+                List {
+                    FileTreeRows(
+                        nodes: children,
+                        model: model,
+                        selectedFileURL: $selectedFileURL
+                    )
                 }
                 .listStyle(.sidebar)
             } else {
@@ -21,7 +25,8 @@ struct FileTreeSidebar: View {
 
 private struct FileTreeRows: View {
     let nodes: [FileNode]
-    let model: FileTreeModel
+    @Bindable var model: FileTreeModel
+    @Binding var selectedFileURL: URL?
 
     var body: some View {
         ForEach(nodes) { node in
@@ -29,14 +34,18 @@ private struct FileTreeRows: View {
                 DisclosureGroup(
                     isExpanded: Binding(
                         get: { model.expandedURLs.contains(node.url) },
-                        set: { _ in model.toggleExpansion(for: node.url) }
+                        set: { isExpanded in
+                            model.setExpansion(for: node.url, isExpanded: isExpanded)
+                        }
                     )
                 ) {
-                    if let children = node.children {
-                        FileTreeRows(nodes: children, model: model)
+                    if let children = model.childrenForDirectory(at: node.url) {
+                        FileTreeRows(
+                            nodes: children,
+                            model: model,
+                            selectedFileURL: $selectedFileURL
+                        )
                     } else {
-                        // This state should ideally not be reached with lazy loading
-                        // if building children on expansion, but provides a fallback.
                         ProgressView().controlSize(.small).padding(.leading)
                     }
                 } label: {
@@ -44,7 +53,15 @@ private struct FileTreeRows: View {
                 }
             } else {
                 nodeLabel(node)
-                    .tag(node.url)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        selectedFileURL = node.url
+                    }
+                    .listRowBackground(
+                        selectedFileURL == node.url
+                            ? Color(nsColor: .selectedContentBackgroundColor)
+                            : Color.clear
+                    )
             }
         }
     }

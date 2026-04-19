@@ -22,6 +22,12 @@ final class TabManager {
     /// Posts `.stupedTabSwitched` only when switching to an existing tab (new tabs are handled
     /// by ContentView's onChange flow).
     func open(url: URL) {
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+           isDirectory.boolValue {
+            return
+        }
+
         if let existing = tabs.first(where: { $0.fileURL == url }) {
             guard activeTabID != existing.id else { return }
             activeTabID = existing.id

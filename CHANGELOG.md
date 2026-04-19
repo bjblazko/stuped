@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-04-19
+
 ### Changed
 
 - Release CI now builds on GitHub Actions `macos-26` with **Xcode 26.4**, while the app still deploys to **macOS 15+**.
+
+### Fixed
+
+- Clicking a folder in the sidebar now expands/collapses it instead of opening a bogus editor tab for the directory.
+- Markdown and split preview render again after switching to files in subfolders; bundled Mermaid loading no longer depends on blocked file-URL access.
 
 ## [0.5.0] - 2026-04-19
 

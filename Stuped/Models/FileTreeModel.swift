@@ -44,6 +44,23 @@ class FileTreeModel {
         rebuildTree()
     }
 
+    func setExpansion(for url: URL, isExpanded: Bool) {
+        let changed: Bool
+        if isExpanded {
+            changed = expandedURLs.insert(url).inserted
+        } else {
+            changed = expandedURLs.remove(url) != nil
+        }
+
+        if changed {
+            rebuildTree()
+        }
+    }
+
+    func childrenForDirectory(at url: URL) -> [FileNode]? {
+        findNode(for: url)?.children
+    }
+
     func rebuildTree() {
         guard let url = rootURL else { return }
         rootNode = buildNode(at: url)
@@ -96,6 +113,25 @@ class FileTreeModel {
             }
             return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
         }
+    }
+
+    private func findNode(for targetURL: URL) -> FileNode? {
+        guard let rootNode else { return nil }
+        return findNode(for: targetURL, in: rootNode)
+    }
+
+    private func findNode(for targetURL: URL, in node: FileNode) -> FileNode? {
+        if node.url == targetURL {
+            return node
+        }
+
+        guard let children = node.children else { return nil }
+        for child in children {
+            if let match = findNode(for: targetURL, in: child) {
+                return match
+            }
+        }
+        return nil
     }
 
     // MARK: - File Watching

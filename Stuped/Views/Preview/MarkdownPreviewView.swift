@@ -57,7 +57,8 @@ struct MarkdownPreviewView: NSViewRepresentable {
 
         let mdItJS = loadResource("markdown-it.min", ext: "js")
         let hljsJS = loadResource("highlight.min", ext: "js")
-        let mermaidURL = resourceURL("mermaid.min", ext: "js")
+        let mermaidJS = loadResource("mermaid.min", ext: "js")
+        let mermaidDataURL = dataURL(for: mermaidJS, mimeType: "text/javascript")
         let previewCSS = loadResource("preview-styles", ext: "css")
         let hljsLightCSS = loadResource("hljs-github", ext: "css")
         let hljsDarkCSS = loadResource("hljs-github-dark", ext: "css")
@@ -75,7 +76,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
         </head>
         <body>
             <div id="content"></div>
-            <script src="\(mermaidURL)"></script>
+            <script src="\(mermaidDataURL)"></script>
             <script>
                 const md = markdownit({
                     html: true,
@@ -96,14 +97,19 @@ struct MarkdownPreviewView: NSViewRepresentable {
                     }
                 });
 
-                mermaid.initialize({
-                    startOnLoad: false,
-                    theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
-                    securityLevel: 'strict'
-                });
+                function configureMermaid(isDark) {
+                    if (!window.mermaid) { return; }
+                    mermaid.initialize({
+                        startOnLoad: false,
+                        theme: isDark ? 'dark' : 'default',
+                        securityLevel: 'strict'
+                    });
+                }
+
+                configureMermaid(window.matchMedia('(prefers-color-scheme: dark)').matches);
 
                 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
-                    mermaid.initialize({ startOnLoad: false, theme: e.matches ? 'dark' : 'default', securityLevel: 'strict' });
+                    configureMermaid(e.matches);
                     if (window._lastMarkdown) { renderMarkdown(window._lastMarkdown); }
                 });
 
@@ -116,6 +122,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
 
                     const els = document.querySelectorAll('pre.mermaid');
                     for (const el of els) {
+                        if (!window.mermaid) { continue; }
                         const def = el.textContent;
                         const id = 'mermaid-' + (mermaidCounter++);
                         try {
@@ -167,22 +174,17 @@ struct MarkdownPreviewView: NSViewRepresentable {
             .replacingOccurrences(of: "\r", with: "\\r")
     }
 
+    private static func dataURL(for text: String, mimeType: String) -> String {
+        let encoded = Data(text.utf8).base64EncodedString()
+        return "data:\(mimeType);base64,\(encoded)"
+    }
+
     private static func loadResource(_ name: String, ext: String) -> String {
         if let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: "Resources") {
             return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
         }
         if let url = Bundle.main.url(forResource: name, withExtension: ext) {
             return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-        }
-        return ""
-    }
-
-    private static func resourceURL(_ name: String, ext: String) -> String {
-        if let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: "Resources") {
-            return url.absoluteString
-        }
-        if let url = Bundle.main.url(forResource: name, withExtension: ext) {
-            return url.absoluteString
         }
         return ""
     }
@@ -197,17 +199,17 @@ struct MarkdownPreviewView: NSViewRepresentable {
         private var renderWorkItem: DispatchWorkItem?
         var pageLoaded = false
 
-        let tempFileURL: URL
+        private let tempFileName = ".stuped-preview-\(UUID().uuidString).html"
+        private var tempFileURL: URL?
 
         init(previewType: PreviewType) {
             self.previewType = previewType
-            self.tempFileURL = URL(fileURLWithPath: NSTemporaryDirectory())
-                .appendingPathComponent(UUID().uuidString)
-                .appendingPathExtension("html")
         }
 
         deinit {
-            try? FileManager.default.removeItem(at: tempFileURL)
+            if let tempFileURL {
+                try? FileManager.default.removeItem(at: tempFileURL)
+            }
         }
 
         func loadHTMLWithFileAccess(_ html: String, baseURL: URL?, into webView: WKWebView) {
@@ -218,6 +220,17 @@ struct MarkdownPreviewView: NSViewRepresentable {
             let baseTag = "<base href=\"\(baseURL.absoluteString)\">"
             let finalHTML = html.replacingOccurrences(of: "<head>", with: "<head>\n    \(baseTag)")
             do {
+                let newTempFileURL = baseURL.appendingPathComponent(tempFileName)
+                if tempFileURL != newTempFileURL, let oldTempFileURL = tempFileURL {
+                    try? FileManager.default.removeItem(at: oldTempFileURL)
+                }
+                tempFileURL = newTempFileURL
+
+                guard let tempFileURL else {
+                    webView.loadHTMLString(html, baseURL: baseURL)
+                    return
+                }
+
                 try finalHTML.write(to: tempFileURL, atomically: true, encoding: .utf8)
                 // Restrict read access to only the directory containing the file
                 webView.loadFileURL(tempFileURL, allowingReadAccessTo: baseURL)
