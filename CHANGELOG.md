@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Release CI now builds on GitHub Actions `macos-26` with **Xcode 26.4**, while the app still deploys to **macOS 15+**.
+
 ## [0.5.0] - 2026-04-19
 
 ### Added

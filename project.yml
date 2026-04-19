@@ -3,7 +3,7 @@ options:
   bundleIdPrefix: com.huepattl
   deploymentTarget:
     macOS: "15.0"
-  xcodeVersion: "16.2"
+  xcodeVersion: "26.4"
   generateEmptyDirectories: true
 
 packages:

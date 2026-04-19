@@ -45,7 +45,7 @@ Then double-click to open normally.
 ## Requirements
 
 - macOS 15.0 or later
-- Xcode 16.2 or later
+- Xcode 26.4 or later
 - Swift 5.9
 
 ## Building
