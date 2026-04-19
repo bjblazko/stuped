@@ -7,39 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-19
+
 ### Added
 
-- Green zoom button (traffic light) in both file and folder windows now enters **fullscreen** instead of using standard zoom.
-- Global search (⌘⇧F): added **extension filter** field (`ext:`) inline in the search bar — type e.g. `swift` to narrow results to files with that extension; clear it to search all file types.
-- **Reveal in File Tree** (⌘⇧J): expands the sidebar to the active file's location in the project tree. Also available via right-click on any tab.
-- **View Options toolbar menu** (`slider.horizontal.3` icon): consolidates Word Wrap, Mini-Map, Show Dot Files, Reveal in File Tree, Recent Files, and Search Files into a single toolbar dropdown. Active toggles show a checkmark.
-- **View mode keyboard shortcuts** (Cmd+1 Edit, Cmd+2 Split, Cmd+3 Preview): available from the main View menu and the View Options toolbar menu; only active when a previewable file (Markdown, HTML) is open.
-- **Tab context menu**: right-clicking any tab now shows "Close Tab" and "Close Others" (closes all other open tabs).
-- **Appearance override** (View menu and View Options toolbar menu): choose *System*, *Light*, or *Dark* to override the macOS appearance setting per-app. Persists across launches.
+- **Green zoom button enters fullscreen** in both file and folder windows via the native SwiftUI `.windowFullScreenBehavior(.enabled)` API.
+- **Appearance override** (View menu and View Options toolbar menu): choose *System*, *Light*, or *Dark* to override the macOS appearance per-app. Persists across launches.
+- **Reveal in File Tree** (⌘⇧J): expands the sidebar to the active file's location. Also available via tab right-click context menu.
+- **View Options toolbar menu** (`slider.horizontal.3` icon): consolidates Word Wrap, Mini-Map, Show Dot Files, Reveal in File Tree, Recent Files, and Search Files into one dropdown. Active toggles show a checkmark.
+- **View mode keyboard shortcuts** Cmd+1/2/3 (Edit/Split/Preview) in View menu and toolbar; active only for previewable file types.
+- **Tab context menu**: right-clicking any tab shows "Close Tab" and "Close Others".
+- Global search (⌘⇧F): **extension filter** (`ext:`) inline in the search bar — type e.g. `swift` to narrow results; clear to search all types.
 
 ### Changed
 
-- Dark mode editor background is now pure black (`#000000`) instead of the theme's blue-gray (`#282c34`).
-- **Unified dark mode**: tab bar, path bar, status bar, sidebar, line-number gutter, global search panel, and recent-files popup are all pulled down to the same near-black (`#0a0a0a`) as the editor, with a single elevation step (`#171717`) for active tabs and selected rows. Shared `Color.appDarkBackground` / `NSColor.appDarkBackground` constants replace nine scattered hardcoded RGB values. System accent color continues to tint selected tabs, dirty indicators, and search highlights.
-- View-mode switcher (Edit / Split / Preview) moved from a floating overlay on top of the editor to a **dedicated thin bar** between the path bar and the editor. The segmented control is now always accessible with a pointer cursor regardless of file content.
-
-- Global search dialog is now a native **resizable NSPanel** with standard title bar, close button, drag-to-resize, and position/size memory across sessions. Previously it was a floating SwiftUI overlay that could not be resized.
-- Global search: results and preview are separated by a **draggable horizontal splitter** (VSplitView), so each pane can be resized independently.
-- Global search: **search scope always reflects the currently visible sidebar root**, not the stale top-level project folder — useful when breadcrumb-navigating into a subdirectory.
-- Global search: default scope changed from **Contents** to **Both** (searches filenames and file contents simultaneously).
-- Global search: the three-segment scope control (Name / Contents / Both) is replaced by a macOS-native **popup button** (dropdown) in the search bar row. "Name" is now labelled **Filename**.
-- Global search panel closes automatically when the user opens a different project folder.
+- Dark mode editor and gutter background are now pure black; light mode follows the active syntax-highlight theme.
+- File tree uses **lazy loading** — only expanded directories are scanned, improving startup time and memory for large projects.
+- FSEvents watcher triggers rebuilds only for changes inside currently expanded paths.
+- View-mode switcher moved from a floating overlay to a **dedicated bar** between path bar and editor.
+- Global search dialog is now a native **resizable NSPanel** with title bar, close button, drag-to-resize, and position/size memory.
+- Global search: results and preview separated by a **draggable VSplitView**.
+- Global search: scope always reflects the **currently visible sidebar root**, not the stale project root.
+- Global search: default scope changed to **Both** (filename + contents); mode selector is now a native popup button.
+- Global search panel closes automatically when a different project folder is opened.
 
 ### Fixed
 
-- Titlebar separator line removed in dark mode, eliminating the top-left corner seam between sidebar and toolbar in both windowed and fullscreen modes.
-- File tree now detects new and deleted files anywhere in the project tree, not just at the root level. Switched from single-directory kqueue watching to recursive `FSEventStream` (CoreServices).
-- Global search: dialog now opens at a usable default size (720 × 640 pt) on every machine and every launch, including the very first one.
-- Global search: search field reliably receives focus when the dialog opens.
-- Global search: results from a previously opened project no longer appear when switching to a different folder.
-- Global search: first result is now immediately visible and highlighted when results arrive; previously the selection was invisible for the first several rows due to a missing initial scroll.
-- Global search: line numbers in the preview panel now use a higher-contrast foreground style, making them legible in dark mode.
-- CI build now uses Xcode 16.2 instead of 16.0, so the released app has modern sidebar and toolbar button styling on current macOS versions.
+- Markdown preview WKWebView file access restricted to the file's own parent directory (was granting root-level access).
+- Mermaid diagram rendering now uses `securityLevel: 'strict'`.
+- File tree detects new and deleted files **anywhere** in the project tree via recursive `FSEventStream`; previously only root-level changes were caught.
+- Global search: consistent default size (720 × 640 pt) on every launch including the first.
+- Global search: search field reliably receives focus on open.
+- Global search: stale results from a previous project no longer appear after switching folders.
+- Global search: first result immediately visible and highlighted on arrival.
+- Global search: line numbers in preview use higher-contrast styling in dark mode.
+- CI build uses Xcode 16.2, ensuring modern sidebar and toolbar styling on current macOS.
 
 ## [0.4.0] - 2026-04-15
 
