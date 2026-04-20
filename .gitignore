@@ -21,3 +21,6 @@ Packages/
 
 # Test files
 test-files/
+
+# Preview temp files
+.stuped-preview-*.html

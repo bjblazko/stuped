@@ -11,7 +11,8 @@
       "Bash(git rm:*)",
       "Bash(git add:*)",
       "Bash(git mv:*)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "WebFetch(domain:www.fline.dev)"
     ]
   }
 }

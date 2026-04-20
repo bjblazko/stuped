@@ -10,6 +10,12 @@ By [Hüpattl! Software](https://huepattl.de)
 
 ![Markdown with preview including Mermaid diagrams](./doc/screenshot-2-md-preview.png)
 
+![Show recently opened files/quick switch](./doc/screenshot-3-recent.png)
+
+![Find files and find in files](./doc/screenshot-4-findinfiles.png)
+
+![Light mode/theme](./doc/screenshot-5-light-theme.png)
+
 - **Code editing** with syntax highlighting (150+ languages via highlight.js), line numbers, and find bar
 - **In-window tabs** in folder mode — each opened file gets a tab; unsaved changes are preserved per tab
 - **Markdown preview** with GitHub-flavored rendering, code blocks, and Mermaid diagrams
