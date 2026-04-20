@@ -69,15 +69,15 @@ graph LR
 |-----------------|-----------|---------|
 | macOS File System | `FileManager`, `open()` | Read/write files, directory listing, kqueue watching |
 | `/usr/bin/git` | `Foundation.Process` | Branch name, remote URL, repo root detection |
-| WebKit (in-process) | `WKWebView`, `evaluateJavaScript` | Markdown/HTML rendering |
+| WebKit (in-process) | `WKWebView`, `evaluateJavaScript`, `WKURLSchemeHandler` | Markdown/HTML rendering and scoped local-asset loading from preview temp staging |
 | highlight.js (JavaScriptCore) | `Highlighter` (HighlighterSwift) | Editor syntax highlighting |
 
 ## 4. Solution Strategy
 
 | Goal | Strategy |
 |------|----------|
-| Native feel | SwiftUI for layout; AppKit NSTextView for editing |
-| Rich preview | WKWebView with bundled markdown-it + mermaid.js |
+| Native feel | SwiftUI for layout; AppKit NSTextView for editing; retain one document pane per open tab |
+| Rich preview | WKWebView with bundled markdown-it + mermaid.js, staging generated preview HTML under the user's temp directory and serving relative assets through a custom URL scheme |
 | Responsiveness | Debounced highlighting (150ms) and preview (300ms) |
 | File awareness | kqueue-based directory watching via DispatchSource |
 | Git context | Shell out to git CLI asynchronously |
@@ -98,11 +98,10 @@ graph TD
     WS --> FBV["FolderBrowserView"] --> CV
 
     CV --> FTS["FileTreeSidebar"]
-    CV --> EA["Editor Area"]
-    CV --> SBV["StatusBarView"]
-
-    EA --> CEV["CodeEditorView\n(NSTextView + MiniMapView)"]
-    EA --> MPV["MarkdownPreviewView\n(WKWebView)"]
+    CV --> DP["DocumentPaneView stack"]
+    DP --> CEV["CodeEditorView\n(NSTextView + MiniMapView)"]
+    DP --> MPV["MarkdownPreviewView\n(WKWebView)"]
+    DP --> SBV["StatusBarView"]
 ```
 
 ### Level 2: ContentView Internals
@@ -112,10 +111,8 @@ graph TD
     subgraph ContentView
         subgraph State
             viewMode["viewMode: ViewMode"]
-            editorState["editorState: EditorState"]
             treeModel["treeModel: FileTreeModel"]
             sidebarFileURL["sidebarFileURL: URL?"]
-            gitInfo["gitInfo: GitInfo?"]
         end
         subgraph Binding
             document["document: StupedDocument"]
@@ -123,16 +120,17 @@ graph TD
         subgraph Computed
             activeFileURL["activeFileURL: URL?"]
             previewType["previewType: PreviewType?"]
-            detectedLanguage["detectedLanguage: String?"]
+            activeTab["activeTab: TabItem?"]
         end
     end
 
     ContentView --> NSV["NavigationSplitView"]
     NSV --> Sidebar["FileTreeSidebar\n(rootNode, selectedFileURL, expandedURLs)"]
-    NSV --> Detail["Detail VStack"]
-    Detail --> PBV["PathBarView\n(fileURL, gitInfo, onNavigate)"]
-    Detail --> EditorArea["editorArea"]
-    Detail --> SBV["StatusBarView\n(editorState, language)"]
+    NSV --> Detail["Detail ZStack"]
+    Detail --> Pane["DocumentPaneView\n(one per open tab)"]
+    Pane --> PBV["PathBarView\n(fileURL, gitInfo, onNavigate)"]
+    Pane --> EditorArea["editorArea"]
+    Pane --> SBV["StatusBarView\n(editorState, language)"]
 
     EditorArea -->|".edit"| CEV["CodeEditorView"]
     EditorArea -->|".preview"| MPV["MarkdownPreviewView"]
@@ -151,8 +149,8 @@ sequenceDiagram
     participant MP as MarkdownPreviewView
 
     User->>CV: open file
-    CV->>CE: load text
-    CV->>CV: set viewMode = .split
+    CV->>CV: create or activate DocumentPaneView
+    CV->>CE: show mounted editor
     CE->>MP: build HTML
     MP->>MP: load WKWebView
 
@@ -226,6 +224,12 @@ Used in two places to avoid excessive computation:
 | Syntax highlighting | 150ms | `DispatchWorkItem` on main queue |
 | Preview rendering | 300ms | `DispatchWorkItem` on main queue |
 
+### Preview File Isolation
+
+- Generated Markdown/HTML preview documents are staged under `FileManager.default.temporaryDirectory`, not beside the user's source files.
+- `PreviewURLSchemeHandler` serves the staged `index.html` plus relative asset requests through `stuped-preview://preview/...`.
+- Relative asset requests are allowed only when the resolved real path stays inside the active file's parent directory, preserving the previous least-privilege file-access boundary without leaving helper files in the project tree.
+
 ### Binary File Safety
 
 Files are checked for null bytes in the first 8192 bytes before loading. Binary files show a placeholder message and are not editable.
@@ -233,7 +237,7 @@ Files are checked for null bytes in the first 8192 bytes before loading. Binary 
 ### State Management
 
 - `@Observable` (Observation framework) for models: `EditorState`, `FileTreeModel`, `FolderBrowserState`.
-- `@State` and `@Binding` for view-local state.
+- `@State` and `@Binding` for view-local state, including pane-local viewport state inside `DocumentPaneView`.
 - `NotificationCenter` for cross-window communication (folder opened notification).
 
 ## 9. Architecture Decisions
@@ -254,6 +258,12 @@ See [`doc/adr/`](adr/) for detailed Architecture Decision Records:
 | [0010](adr/0010-in-window-tab-management.md) | In-Window Tab Management for Folder Mode |
 | [0011](adr/0011-view-mode-overlay.md) | View Mode Switcher as In-Editor Overlay |
 | [0012](adr/0012-minimap-two-pass-normalization.md) | Mini-Map Two-Pass Width Normalisation |
+| [0013](adr/0013-per-tab-file-watching.md) | Per-Tab File Watching for External Change Detection |
+| [0014](adr/0014-explicit-disclosure-group-for-file-tree.md) | Explicit DisclosureGroup for File Tree Expansion |
+| [0015](adr/0015-fsevents-for-file-tree-watching.md) | FSEventStream for Recursive File Tree Watching |
+| [0016](adr/0016-lazy-loading-for-file-tree-sidebar.md) | Lazy Loading for File Tree Sidebar |
+| [0017](adr/0017-private-temp-preview-staging.md) | Private Temp Preview Staging via Custom URL Scheme |
+| [0018](adr/0018-retained-per-tab-pane-instances.md) | Retained Per-Tab Pane Instances |
 
 ## 10. Quality Requirements
 

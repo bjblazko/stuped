@@ -39,5 +39,5 @@ Sidebar selection changes trigger `ContentView`'s `onFileSelected` callback → 
 ## Consequences
 
 - Each open file's text is kept in memory. For large repos with many open tabs, memory usage grows linearly.
-- Cursor position and scroll offset are not yet preserved per tab (reset on switch). This is a known limitation for a future iteration.
+- The original shared-pane limitation around per-tab viewport retention was later addressed by [ADR-0018](0018-retained-per-tab-pane-instances.md), which keeps one mounted pane per open tab.
 - `ContentView` gained three optional parameters (`tabManager`, `onFileSelected`, `onFileSaved`) and one new `onReceive` handler. The single-file mode code path is unchanged.

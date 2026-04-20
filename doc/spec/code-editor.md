@@ -8,7 +8,7 @@
 
 ## Overview
 
-The code editor wraps AppKit's `NSTextView` via `NSViewRepresentable`, adding syntax highlighting, line numbers, and custom key handling.
+The code editor wraps AppKit's `NSTextView` via `NSViewRepresentable`, adding syntax highlighting, line numbers, custom key handling, and live per-pane viewport retention.
 
 ## NSTextView Configuration
 
@@ -122,6 +122,16 @@ Toggled via View > Toggle Word Wrap (⌘⇧↩). Implemented in `applyWordWrap(_
 
 When word wrap is off the text container is effectively unbounded horizontally, allowing lines to extend beyond the visible area.
 
+## Viewport Retention
+
+`CodeEditorView` accepts a `scrollPosition`, an `onScrollPositionChanged` callback, and an `isActive` flag.
+
+- The coordinator watches `NSView.boundsDidChangeNotification` on the scroll view's clip view.
+- As the user scrolls, the current viewport origin is reported back to the owning `DocumentPaneView`.
+- Folder-mode tab switching normally does not recreate the editor at all: each open tab keeps its own mounted pane, so returning to a tab shows the same live `NSTextView` instance.
+- The local scroll binding is still used when the editor subtree is remounted inside the same pane, for example when toggling between Edit and Split.
+- Highlight reapplication still preserves the visible rect within the mounted editor instance, so live typing does not jump the viewport.
+
 ## Mini-Map
 
 ### File: `MiniMapView.swift`
@@ -168,6 +178,8 @@ The `Coordinator` class is the `NSTextViewDelegate` and manages:
 | Selection changes | `textViewDidChangeSelection(_:)` -- updates `EditorState.updateCursor()`, redraws mini-map |
 | Key commands | `textView(_:doCommandBy:)` -- Tab and Shift+Tab handling |
 | Appearance changes | `NSKeyValueObservation` on `NSApp.effectiveAppearance` |
+| Active-pane focus | `updateFocus()` makes the visible editor the first responder |
+| Viewport retention | `NSView.boundsDidChangeNotification` + `restoreScrollPosition()` |
 
 ### Feedback Loop Prevention
 

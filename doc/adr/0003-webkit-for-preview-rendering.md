@@ -4,6 +4,8 @@
 
 Accepted
 
+> **Note:** The original `loadFileURL(_:allowingReadAccessTo:)` file-access strategy described below has been superseded by [ADR-0017](0017-private-temp-preview-staging.md). Preview still uses `WKWebView`, but generated preview HTML is now staged in the user's temp directory and local assets are served through a custom `WKURLSchemeHandler`.
+
 ## Context
 
 Stuped needs to render Markdown as formatted HTML with syntax-highlighted code blocks, Mermaid diagrams, and dark/light mode support. HTML files should also be previewable.

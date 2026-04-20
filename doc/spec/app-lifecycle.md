@@ -36,7 +36,7 @@ WindowGroup("Stuped — Folder", id: "folder-browser", for: String.self) { _ in
 - Declared as a `WindowGroup` so it gets standard macOS window management, including native fullscreen behavior.
 - Reused as a single logical folder window by always opening the group with the same presentation value (`"main"`).
 - Uses SwiftUI's native macOS full-screen interaction so the green traffic-light button enters full screen.
-- `FolderBrowserView` owns a `TabManager` and passes an `activeDocumentBinding` to `ContentView` so the active tab's text is always displayed.
+- `FolderBrowserView` owns a `TabManager` and passes an `activeDocumentBinding` to `ContentView` so save commands still route through the active tab's text, while each open tab keeps its own mounted `DocumentPaneView`.
 
 ### 3. Window (About)
 
@@ -71,6 +71,7 @@ class AppDelegate: NSObject, NSApplicationDelegate
 
 - Created by `DocumentGroup` when a file is opened.
 - `ContentView(document:fileURL:)` -- `isFolderMode = false`.
+- Uses the same `DocumentPaneView` building block as folder mode, but with a single session and no tab strip.
 - `activeFileURL` returns `fileURL` (set by the system).
 - Sidebar hidden by default (`.detailOnly`).
 - `setupFileTree()` loads the parent directory of the opened file into the sidebar tree and selects the file.
@@ -113,21 +114,23 @@ class FolderBrowserState {
 1. Sidebar selection change → `onFileSelected` callback → `TabManager.open(url:)`.
 2. `TabManager.open(url:)`: if tab already exists, switches to it and posts `.stupedTabSwitched`; otherwise loads the file from disk, creates a `TabItem`, and makes it active.
 3. `FolderBrowserView.activeDocumentBinding` exposes `tabManager.activeTab.text` as a `Binding<StupedDocument>` to `ContentView`.
-4. On tab switch, `ContentView` receives `.stupedTabSwitched`, updates `sidebarFileURL` (sidebar highlight), and infers the correct `viewMode` from the file type — no disk read.
+4. On tab switch, `ContentView` receives `.stupedTabSwitched`, updates `sidebarFileURL` (sidebar highlight), and makes the target tab's already-mounted `DocumentPaneView` visible without re-reading the file from disk.
 
 `TabItem` stores:
 - `fileURL` — immutable
 - `text` — current editor content
 - `savedText` — content as of last save; `isDirty` is computed as `text != savedText`
+- `viewMode` — the tab's selected Edit / Split / Preview mode
 
 ## File Loading in Folder Mode (new tab)
 
 When `TabManager.open(url:)` creates a new tab:
 
-1. Verify the file is not an image (images get an empty `text` and `.preview` mode).
+1. Derive the tab's initial `viewMode` from the file type: images open in `.preview`, previewable text files in `.split`, other text files in `.edit`.
 2. Read file data from disk.
 3. Check for binary content (null bytes in first 8 KB).
 4. Decode as UTF-8; store in `TabItem.text` and `TabItem.savedText`.
+5. When the tab's `DocumentPaneView` is first mounted, it creates that tab's editor/preview instances and keeps them alive until the tab is closed.
 
 ## Saving in Folder Mode
 

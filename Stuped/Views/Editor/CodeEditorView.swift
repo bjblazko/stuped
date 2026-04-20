@@ -7,8 +7,11 @@ struct CodeEditorView: NSViewRepresentable {
     var language: String?
     var fontSize: CGFloat = 13
     var editorState: EditorState?
+    var isActive: Bool = true
     var wordWrap: Bool = false
     var showMiniMap: Bool = true
+    var scrollPosition: CGPoint = .zero
+    var onScrollPositionChanged: ((CGPoint) -> Void)? = nil
     var onFindBarHeightChanged: ((CGFloat) -> Void)? = nil
 
     func makeCoordinator() -> Coordinator {
@@ -104,11 +107,21 @@ struct CodeEditorView: NSViewRepresentable {
         // Defer highlighting
         DispatchQueue.main.async {
             context.coordinator.setupHighlighter()
+            context.coordinator.restoreScrollPosition()
+            context.coordinator.updateFocus()
         }
 
         // Watch dark/light mode; also track find bar visibility via KVO
         let coordinator = context.coordinator
         coordinator.scrollView = castScrollView
+        castScrollView.contentView.postsBoundsChangedNotifications = true
+        coordinator.scrollObservation = NotificationCenter.default.addObserver(
+            forName: NSView.boundsDidChangeNotification,
+            object: castScrollView.contentView,
+            queue: .main
+        ) { [weak coordinator] _ in
+            coordinator?.reportScrollPosition()
+        }
         coordinator.appearanceObservation = textView.observe(\.effectiveAppearance) { _, _ in
             coordinator.applyHighlighting()
         }
@@ -154,6 +167,13 @@ struct CodeEditorView: NSViewRepresentable {
         if let scrollView = textView.enclosingScrollView {
             Self.applyEditorColors(to: textView, scrollView: scrollView)
         }
+
+        if context.coordinator.currentIsActive != isActive {
+            context.coordinator.currentIsActive = isActive
+            context.coordinator.updateFocus()
+        }
+
+        context.coordinator.restoreScrollPositionIfNeeded()
     }
 
     private static func applyEditorColors(to textView: NSTextView, scrollView: NSScrollView) {
@@ -191,29 +211,80 @@ struct CodeEditorView: NSViewRepresentable {
         var currentLanguage: String?
         var currentWordWrap: Bool = true
         var currentShowMiniMap: Bool = true
+        var currentIsActive: Bool
         var miniMapWidthConstraint: NSLayoutConstraint?
         var miniMapHiddenConstraint: NSLayoutConstraint?
         var appearanceObservation: NSKeyValueObservation?
         var findBarObservation: NSKeyValueObservation?
+        var scrollObservation: NSObjectProtocol?
         weak var scrollView: NSScrollView?
         private var highlighter: Highlighter?
         private var highlightWorkItem: DispatchWorkItem?
+        private var lastRestoredScrollPosition: CGPoint?
 
         init(_ parent: CodeEditorView) {
             self.parent = parent
             self.currentLanguage = parent.language
             self.currentWordWrap = parent.wordWrap
             self.currentShowMiniMap = parent.showMiniMap
+            self.currentIsActive = parent.isActive
         }
 
         deinit {
             appearanceObservation?.invalidate()
             findBarObservation?.invalidate()
+            if let scrollObservation {
+                NotificationCenter.default.removeObserver(scrollObservation)
+            }
         }
 
         func setupHighlighter() {
             highlighter = Highlighter()
             applyHighlighting()
+        }
+
+        func reportScrollPosition() {
+            guard let scrollView else { return }
+            let position = scrollView.contentView.bounds.origin
+            lastRestoredScrollPosition = position
+            parent.onScrollPositionChanged?(position)
+        }
+
+        func restoreScrollPositionIfNeeded() {
+            guard lastRestoredScrollPosition != parent.scrollPosition else { return }
+            restoreScrollPosition()
+        }
+
+        func restoreScrollPosition() {
+            guard let scrollView else { return }
+            let documentBounds = scrollView.documentView?.bounds ?? .zero
+            let maxX = max(0, documentBounds.width - scrollView.contentSize.width)
+            let maxY = max(0, documentBounds.height - scrollView.contentSize.height)
+            let clampedPosition = CGPoint(
+                x: min(max(parent.scrollPosition.x, 0), maxX),
+                y: min(max(parent.scrollPosition.y, 0), maxY)
+            )
+            scrollView.contentView.scroll(to: clampedPosition)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            lastRestoredScrollPosition = clampedPosition
+            parent.onScrollPositionChanged?(clampedPosition)
+        }
+
+        func updateFocus() {
+            guard let textView else { return }
+
+            if currentIsActive {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self,
+                          self.currentIsActive,
+                          let textView = self.textView,
+                          let window = textView.window,
+                          window.firstResponder !== textView else { return }
+                    window.makeFirstResponder(textView)
+                }
+            } else if let window = textView.window, window.firstResponder === textView {
+                window.makeFirstResponder(nil)
+            }
         }
 
         func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
@@ -310,6 +381,7 @@ struct CodeEditorView: NSViewRepresentable {
             if let rect = visibleRect {
                 textView.enclosingScrollView?.contentView.scrollToVisible(rect)
             }
+            reportScrollPosition()
         }
     }
 }

@@ -4,6 +4,8 @@
 
 Accepted
 
+> **Note:** The large-script-loading decision remains in effect, but the `loadFileURL(_:allowingReadAccessTo:)` transport mentioned below has been superseded by [ADR-0017](0017-private-temp-preview-staging.md). Preview now stages HTML in the user's temp directory and serves it through a custom `WKURLSchemeHandler`.
+
 ## Context
 
 The Markdown preview uses WKWebView with several JavaScript libraries loaded as inline `<script>` blocks: markdown-it (~124 KB), highlight.js (~128 KB), and mermaid (~3.2 MB). The HTML is built in Swift by interpolating each library's source into a template string and then loading it into WKWebView via `loadFileURL`.

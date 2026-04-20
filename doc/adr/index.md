@@ -18,3 +18,5 @@
 | [0014](0014-explicit-disclosure-group-for-file-tree.md) | Explicit DisclosureGroup for File Tree Expansion | Accepted |
 | [0015](0015-fsevents-for-file-tree-watching.md) | FSEventStream for Recursive File Tree Watching | Accepted |
 | [0016](0016-lazy-loading-for-file-tree-sidebar.md) | Lazy Loading for File Tree Sidebar | Accepted |
+| [0017](0017-private-temp-preview-staging.md) | Private Temp Preview Staging via Custom URL Scheme | Accepted |
+| [0018](0018-retained-per-tab-pane-instances.md) | Retained Per-Tab Pane Instances | Accepted |

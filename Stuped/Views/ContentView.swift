@@ -4,19 +4,15 @@ struct ContentView: View {
     @Binding var document: StupedDocument
     var fileURL: URL?
 
-    @State private var viewMode: ViewMode = .edit
-    @State private var editorState = EditorState()
+    @State private var viewMode: DocumentViewMode = .edit
     @State private var treeModel = FileTreeModel()
     @State private var sidebarFileURL: URL?
     @State private var columnVisibility: NavigationSplitViewVisibility
-    @State private var gitInfo: GitInfo?
-    @State private var findBarHeight: CGFloat = 0
     @AppStorage("editor.wordWrap") private var wordWrap: Bool = false
     @AppStorage("editor.showMiniMap") private var showMiniMap: Bool = true
     @AppStorage("fileTree.showHiddenFiles") private var showHiddenFiles: Bool = false
     @AppStorage("app.appearance") private var appearanceRaw: String = AppearancePreference.system.rawValue
     @Environment(\.openWindow) private var openWindow
-    @Environment(\.colorScheme) private var colorScheme
 
     /// When true, selecting a file in the sidebar loads it into the editor
     /// (replacing the current document text). When false (DocumentGroup mode),
@@ -29,12 +25,6 @@ struct ContentView: View {
     private let onFileSelected: ((URL) -> Void)?
     /// Called after ContentView successfully saves a file, so the caller can clear the dirty flag.
     private let onFileSaved: ((URL) -> Void)?
-
-    enum ViewMode: String, CaseIterable {
-        case edit = "Edit"
-        case preview = "Preview"
-        case split = "Split"
-    }
 
     /// Single-file mode: opened via Finder / File > Open. Sidebar hidden by default.
     init(document: Binding<StupedDocument>, fileURL: URL?) {
@@ -64,11 +54,13 @@ struct ContentView: View {
 
     private var activeFileURL: URL? {
         if isFolderMode {
-            // Prefer sidebar selection; fall back to active tab so navigating
-            // to a folder via breadcrumbs doesn't blank the editor.
             return sidebarFileURL ?? tabManager?.activeTab?.fileURL
         }
         return fileURL
+    }
+
+    private var activeTab: TabItem? {
+        tabManager?.activeTab
     }
 
     private var previewType: PreviewType? {
@@ -84,35 +76,37 @@ struct ContentView: View {
         previewType == .image
     }
 
-    private var detectedLanguage: String? {
-        guard let url = activeFileURL else { return nil }
-        return LanguageMap.language(for: url.pathExtension)
+    private var activeViewMode: DocumentViewMode {
+        if isImageFile {
+            return .preview
+        }
+
+        if isFolderMode {
+            if let mode = activeTab?.viewMode {
+                return mode
+            }
+            if let activeFileURL {
+                return defaultViewMode(for: activeFileURL)
+            }
+        }
+
+        return viewMode
     }
 
     private var detailContent: some View {
         VStack(spacing: 0) {
-            if let tm = tabManager, !tm.tabs.isEmpty {
-                TabBarView(tabManager: tm)
+            if let tabManager, !tabManager.tabs.isEmpty {
+                TabBarView(tabManager: tabManager)
             }
+
             if isFolderMode && activeFileURL == nil {
-                ContentUnavailableView("No File Selected",
+                ContentUnavailableView(
+                    "No File Selected",
                     systemImage: "doc.text",
-                    description: Text("Select a file from the sidebar to view or edit it."))
+                    description: Text("Select a file from the sidebar to view or edit it.")
+                )
             } else {
-                PathBarView(fileURL: activeFileURL, gitInfo: gitInfo,
-                            onNavigate: { url in navigateToPath(url) }) {
-                    let active = isPreviewable && !isImageFile
-                    viewModePicker
-                        .opacity(active ? 1 : 0)
-                        .disabled(!active)
-                }
-
-                editorArea
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                if viewMode != .preview && !isImageFile {
-                    StatusBarView(editorState: editorState, language: detectedLanguage)
-                }
+                detailPanes
             }
         }
     }
@@ -146,65 +140,54 @@ struct ContentView: View {
         .frame(minWidth: 500, minHeight: 400)
         .onAppear {
             setupFileTree()
-            if isImageFile {
+            if !isFolderMode, isImageFile {
                 viewMode = .preview
             }
-            if !isFolderMode {
-                editorState.detectLineEnding(in: document.text)
-                editorState.detectIndentation(in: document.text)
-            }
-            refreshGitInfo()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .stupedFolderOpened)) { notif in
-            if isFolderMode, let url = notif.userInfo?["url"] as? URL {
+        .onReceive(NotificationCenter.default.publisher(for: .stupedFolderOpened)) { notification in
+            if isFolderMode, let url = notification.userInfo?["url"] as? URL {
                 treeModel.loadDirectory(at: url)
                 sidebarFileURL = nil
             }
         }
         .onChange(of: treeModel.rootURL) { _, newURL in
-            // Keep FolderBrowserState in sync so global search always uses the
-            // currently displayed tree root, not the stale top-level project folder.
-            if isFolderMode { FolderBrowserState.shared.treeRootURL = newURL }
+            if isFolderMode {
+                FolderBrowserState.shared.treeRootURL = newURL
+            }
         }
-        .onChange(of: viewMode) { _, _ in findBarHeight = 0 }
         .onChange(of: showHiddenFiles, initial: true) { _, newValue in
             treeModel.showHiddenFiles = newValue
             treeModel.rebuildTree()
         }
         .onChange(of: sidebarFileURL) { _, newURL in
             if isFolderMode {
-                if let callback = onFileSelected {
-                    // Tab-aware mode: caller handles file loading via TabManager.
-                    if let url = newURL { callback(url) }
+                if let onFileSelected {
+                    if let newURL {
+                        onFileSelected(newURL)
+                    }
                 } else {
                     loadFileFromSidebar(url: newURL)
                 }
                 FolderBrowserState.shared.selectedFileURL = newURL
             }
-            refreshGitInfo()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .stupedTabSwitched)) { notif in
-            guard isFolderMode, let url = notif.userInfo?["url"] as? URL else { return }
-            // Update sidebar highlight and view mode without reloading from disk.
+        .onReceive(NotificationCenter.default.publisher(for: .stupedTabSwitched)) { notification in
+            guard isFolderMode, let url = notification.userInfo?["url"] as? URL else { return }
             sidebarFileURL = url
-            if LanguageMap.isImage(url.pathExtension) {
-                viewMode = .preview
-            } else {
-                viewMode = .edit
-            }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .stupedRevealInFileTree)) { notif in
+        .onReceive(NotificationCenter.default.publisher(for: .stupedRevealInFileTree)) { notification in
             guard isFolderMode else { return }
-            let url = (notif.userInfo?["url"] as? URL) ?? tabManager?.activeTab?.fileURL
+            let url = (notification.userInfo?["url"] as? URL) ?? tabManager?.activeTab?.fileURL
             guard let url else { return }
             treeModel.expandToURL(url)
             sidebarFileURL = url
             columnVisibility = .all
         }
-        .onReceive(NotificationCenter.default.publisher(for: .stupedSetViewMode)) { notif in
-            guard isPreviewable, let raw = notif.userInfo?["mode"] as? String,
-                  let mode = ViewMode(rawValue: raw) else { return }
-            viewMode = mode
+        .onReceive(NotificationCenter.default.publisher(for: .stupedSetViewMode)) { notification in
+            guard isPreviewable,
+                  let rawValue = notification.userInfo?["mode"] as? String,
+                  let mode = DocumentViewMode(rawValue: rawValue) else { return }
+            setViewMode(mode)
         }
     }
 
@@ -215,64 +198,39 @@ struct ContentView: View {
         )
     }
 
-    // MARK: - Editor Area
-
     @ViewBuilder
-    private var editorArea: some View {
-        switch viewMode {
-        case .edit:
-            CodeEditorView(text: $document.text, language: detectedLanguage, editorState: editorState, wordWrap: wordWrap, showMiniMap: showMiniMap,
-                           onFindBarHeightChanged: { findBarHeight = $0 })
-        case .preview:
-            previewView
-        case .split:
-            HSplitView {
-                CodeEditorView(text: $document.text, language: detectedLanguage, editorState: editorState, wordWrap: wordWrap, showMiniMap: showMiniMap)
-                    .frame(minWidth: 250)
-                previewView
-                    .frame(minWidth: 250)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var previewView: some View {
-        if let pt = previewType {
-            switch pt {
-            case .markdown, .html:
-                MarkdownPreviewView(text: document.text, previewType: pt, fileURL: activeFileURL)
-            case .image:
-                if let url = activeFileURL {
-                    ImagePreviewView(fileURL: url)
+    private var detailPanes: some View {
+        if isFolderMode, let tabManager {
+            ZStack {
+                ForEach(tabManager.tabs) { tab in
+                    let isActive = tab.id == tabManager.activeTabID
+                    DocumentPaneView(
+                        text: binding(for: tab),
+                        fileURL: tab.fileURL,
+                        viewMode: viewModeBinding(for: tab),
+                        wordWrap: wordWrap,
+                        showMiniMap: showMiniMap,
+                        isActive: isActive,
+                        onNavigate: navigateToPath
+                    )
+                    .opacity(isActive ? 1 : 0)
+                    .allowsHitTesting(isActive)
+                    .accessibilityHidden(!isActive)
+                    .zIndex(isActive ? 1 : 0)
                 }
             }
         } else {
-            Text("Preview not available for this file type.")
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            DocumentPaneView(
+                text: $document.text,
+                fileURL: fileURL,
+                viewMode: $viewMode,
+                wordWrap: wordWrap,
+                showMiniMap: showMiniMap,
+                isActive: true,
+                onNavigate: navigateToPath
+            )
         }
     }
-
-    // MARK: - View mode bar
-
-    // MARK: - View mode picker
-
-    private var viewModePicker: some View {
-        HStack(spacing: 0) {
-            Divider().frame(height: 12)
-            Picker("View Mode", selection: $viewMode) {
-                Image(systemName: "doc.plaintext").tag(ViewMode.edit)
-                Image(systemName: "rectangle.split.2x1").tag(ViewMode.split)
-                Image(systemName: "eye").tag(ViewMode.preview)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 108)
-            .padding(.leading, 8)
-        }
-    }
-
-    // MARK: - Toolbar
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
@@ -296,16 +254,16 @@ struct ContentView: View {
             Menu {
                 if isPreviewable && !isImageFile {
                     Section("View Mode") {
-                        Button { viewMode = .edit } label: {
-                            if viewMode == .edit { Label("Edit", systemImage: "checkmark") }
+                        Button { setViewMode(.edit) } label: {
+                            if activeViewMode == .edit { Label("Edit", systemImage: "checkmark") }
                             else { Text("Edit") }
                         }
-                        Button { viewMode = .split } label: {
-                            if viewMode == .split { Label("Split", systemImage: "checkmark") }
+                        Button { setViewMode(.split) } label: {
+                            if activeViewMode == .split { Label("Split", systemImage: "checkmark") }
                             else { Text("Split") }
                         }
-                        Button { viewMode = .preview } label: {
-                            if viewMode == .preview { Label("Preview", systemImage: "checkmark") }
+                        Button { setViewMode(.preview) } label: {
+                            if activeViewMode == .preview { Label("Preview", systemImage: "checkmark") }
                             else { Text("Preview") }
                         }
                     }
@@ -320,8 +278,8 @@ struct ContentView: View {
                         else { Text("Mini-Map") }
                     }
                     Picker("Appearance", selection: $appearanceRaw) {
-                        ForEach(AppearancePreference.allCases) { pref in
-                            Text(pref.label).tag(pref.rawValue)
+                        ForEach(AppearancePreference.allCases) { preference in
+                            Text(preference.label).tag(preference.rawValue)
                         }
                     }
                 }
@@ -345,7 +303,7 @@ struct ContentView: View {
                         Button("Recent Files") {
                             NotificationCenter.default.post(name: .stupedToggleRecentFiles, object: nil)
                         }
-                        Button("Search Files\u{2026}") {
+                        Button("Search Files...") {
                             NotificationCenter.default.post(name: .stupedToggleGlobalSearch, object: nil)
                         }
                     }
@@ -357,16 +315,13 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - File Tree
-
     private func setupFileTree() {
-        if isFolderMode { return } // folder mode sets tree externally
+        if isFolderMode { return }
 
-        // Single-file mode: show parent directory
-        guard let url = fileURL else { return }
-        let parentDir = url.deletingLastPathComponent()
-        treeModel.loadDirectory(at: parentDir)
-        sidebarFileURL = url
+        guard let fileURL else { return }
+        let parentDirectory = fileURL.deletingLastPathComponent()
+        treeModel.loadDirectory(at: parentDirectory)
+        sidebarFileURL = fileURL
     }
 
     func loadFolder(at url: URL) {
@@ -374,16 +329,13 @@ struct ContentView: View {
         sidebarFileURL = nil
     }
 
-    // MARK: - File Operations
-
     private func loadFileFromSidebar(url: URL?) {
-        guard let url = url else { return }
+        guard let url else { return }
 
-        var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir),
-              !isDir.boolValue else { return }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+              !isDirectory.boolValue else { return }
 
-        // Image files: skip text loading, show preview directly
         if LanguageMap.isImage(url.pathExtension) {
             document.text = ""
             viewMode = .preview
@@ -394,25 +346,22 @@ struct ContentView: View {
             let data = try Data(contentsOf: url)
             let checkLength = min(data.count, 8192)
             if data.prefix(checkLength).contains(0x00) {
-                document.text = "[Binary file — cannot display]"
+                document.text = "[Binary file - cannot display]"
                 return
             }
             document.text = String(decoding: data, as: UTF8.self)
-            editorState.detectLineEnding(in: document.text)
-            editorState.detectIndentation(in: document.text)
-            viewMode = isPreviewable ? .split : .edit
+            viewMode = defaultViewMode(for: url)
         } catch {
             document.text = "Error loading file: \(error.localizedDescription)"
         }
     }
 
     private func navigateToPath(_ url: URL) {
-        var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) else { return }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return }
 
         if !isFolderMode {
-            // Single-file mode: open folder browser window
-            let folderURL = isDir.boolValue ? url : url.deletingLastPathComponent()
+            let folderURL = isDirectory.boolValue ? url : url.deletingLastPathComponent()
             FolderBrowserState.shared.openFolder(url: folderURL)
             openWindow(
                 id: AppWindowID.folderBrowser,
@@ -421,29 +370,15 @@ struct ContentView: View {
             return
         }
 
-        if isDir.boolValue {
+        if isDirectory.boolValue {
             treeModel.loadDirectory(at: url)
             sidebarFileURL = nil
             columnVisibility = .all
         } else {
-            // It's a file — load its parent directory and select the file
-            let parentDir = url.deletingLastPathComponent()
-            treeModel.loadDirectory(at: parentDir)
+            let parentDirectory = url.deletingLastPathComponent()
+            treeModel.loadDirectory(at: parentDirectory)
             sidebarFileURL = url
             columnVisibility = .all
-        }
-    }
-
-    private func refreshGitInfo() {
-        guard let url = activeFileURL else {
-            gitInfo = nil
-            return
-        }
-        Task {
-            let info = await GitInfo.fetch(for: url)
-            await MainActor.run {
-                gitInfo = info
-            }
         }
     }
 
@@ -484,5 +419,40 @@ struct ContentView: View {
         } catch {
             print("Save error: \(error.localizedDescription)")
         }
+    }
+
+    private func setViewMode(_ mode: DocumentViewMode) {
+        let resolvedMode: DocumentViewMode
+        if isImageFile {
+            resolvedMode = .preview
+        } else if isPreviewable {
+            resolvedMode = mode
+        } else {
+            resolvedMode = .edit
+        }
+
+        if isFolderMode, let activeTab {
+            activeTab.viewMode = resolvedMode
+        } else {
+            viewMode = resolvedMode
+        }
+    }
+
+    private func defaultViewMode(for url: URL) -> DocumentViewMode {
+        DocumentViewMode.initialMode(for: url)
+    }
+
+    private func binding(for tab: TabItem) -> Binding<String> {
+        Binding(
+            get: { tab.text },
+            set: { tab.text = $0 }
+        )
+    }
+
+    private func viewModeBinding(for tab: TabItem) -> Binding<DocumentViewMode> {
+        Binding(
+            get: { tab.viewMode },
+            set: { tab.viewMode = $0 }
+        )
     }
 }

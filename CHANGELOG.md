@@ -1,4 +1,4 @@
-# 1Changelog
+# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.5.2] - 2026-04-20
+
+### Fixed
+
+- Markdown and HTML preview no longer write hidden `.stuped-preview-*.html` helper files into the opened project folder; preview staging now uses the current user's macOS temporary directory and keeps relative local assets scoped to the active file's parent directory.
+- Open tabs now keep their own mounted document panes in memory instead of reconstructing one shared detail pane; switching tabs returns to the same live editor or preview context, including view mode and viewport location.
 
 ## [0.5.1] - 2026-04-19
 

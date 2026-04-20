@@ -3,6 +3,7 @@
 ## Files
 
 - `Stuped/Views/Preview/MarkdownPreviewView.swift`
+- `Stuped/Views/Preview/PreviewFileAccess.swift`
 - `Stuped/Views/Preview/ImagePreviewView.swift`
 
 ## Overview
@@ -10,6 +11,13 @@
 Preview rendering handles three content types: Markdown, HTML, and images.
 
 `MarkdownPreviewView` is an `NSViewRepresentable` wrapping `WKWebView`. It renders Markdown or HTML content with live updates as the user types.
+
+In folder mode, each open previewable tab owns its own `MarkdownPreviewView` inside a retained `DocumentPaneView`, so switching tabs normally returns to the same mounted web view instead of rebuilding a shared preview pane.
+
+`PreviewFileAccess.swift` contains the helper types that keep preview staging out of the user's project tree:
+
+- `PreviewTempStore` writes the generated preview HTML into an app-specific directory under `FileManager.default.temporaryDirectory`.
+- `PreviewURLSchemeHandler` serves that staged HTML plus relative local assets through a custom `stuped-preview://` URL space.
 
 `ImagePreviewView` is a SwiftUI view that displays image files using `NSImage`, with dimensions and file size info.
 
@@ -19,7 +27,9 @@ Preview rendering handles three content types: Markdown, HTML, and images.
 |-----------|------|-------------|
 | `text` | `String` | Content to render |
 | `previewType` | `PreviewType` | `.markdown` or `.html` |
-| `fileURL` | `URL?` | Source file URL, used to derive `baseURL` for resolving relative image paths |
+| `fileURL` | `URL?` | Source file URL, used to derive `baseURL` for resolving relative local assets |
+| `scrollPosition` | `CGPoint` | Preview viewport origin owned by the surrounding `DocumentPaneView` |
+| `onScrollPositionChanged` | `(CGPoint) -> Void` | Callback used to keep the pane-local preview viewport in sync |
 
 ## Rendering Paths
 
@@ -81,6 +91,9 @@ Updates are debounced at **300ms** via `DispatchWorkItem` on the main queue.
    - Escapes text for JavaScript template literal.
    - Calls `renderMarkdown(...)` for Markdown or `updateContent(...)` for HTML via `WKWebView.evaluateJavaScript`.
 4. The `pageLoaded` flag ensures JavaScript is not called before the initial page finishes loading.
+5. Scroll-only SwiftUI updates do not trigger a preview re-render; the coordinator only schedules JavaScript updates when `text` actually changed.
+
+If the active file changes to a different parent directory or to a different preview type (`.markdown` vs `.html`), the coordinator performs a full page reload so the new base path and JavaScript wrapper are both refreshed.
 
 ### JavaScript Escaping
 
@@ -104,15 +117,29 @@ Updates are debounced at **300ms** via `DispatchWorkItem` on the main queue.
 
 `dataURL(for:mimeType:)` base64-encodes bundled text resources that need to be referenced as script URLs without relying on bundle `file://` access from the web content process.
 
-## Base URL for Local Images
+## Local Asset Resolution and Temp Storage
 
-The `fileURL` parameter is used to derive a `baseURL` (the file's parent directory). To grant the WKWebView web content process read access to local image files, the generated HTML is written to a hidden temporary HTML file inside that directory and loaded via `loadFileURL(_:allowingReadAccessTo:)` instead of `loadHTMLString`. A `<base href="...">` tag pointing to the markdown file's parent directory is injected into the HTML `<head>` so that relative image paths (e.g. `![](./images/photo.png)`) resolve correctly against the file's location.
+The `fileURL` parameter is used to derive a `baseURL` (the file's parent directory). Relative local assets are resolved without writing helper files into that directory:
 
-Each Coordinator owns a unique hidden temp file name that is created inside the current `baseURL` directory and cleaned up when the preview moves to another directory or deallocates. When `baseURL` is nil (unsaved documents), the view falls back to `loadHTMLString` without file access.
+1. The generated preview document is written to an app-specific temp directory under `FileManager.default.temporaryDirectory`.
+2. The `WKWebView` loads `stuped-preview://preview/index.html` using a per-view `WKURLSchemeHandler`.
+3. A `<base href="stuped-preview://preview/root/">` tag is injected into the HTML `<head>` when `baseURL` exists, so relative URLs inside Markdown or raw HTML resolve through the custom scheme.
+4. The scheme handler maps `/root/...` requests back to files under `baseURL`, but only if the resolved real path stays inside that directory after standardisation and symlink resolution.
 
-When the user switches to a file in a different directory, the coordinator detects the `baseURL` change and performs a full page reload (rather than just a JavaScript update) to establish the new base and file-access grant.
+This keeps preview temp files in a location that is private to the current macOS user and automatically cleaned up by the OS, while preserving least-privilege access to relative assets in the active file's directory.
 
-After a page reload, the coordinator flushes any pending text update once `webView(_:didFinish:)` fires.
+If staging the preview HTML fails, the view logs the error and falls back to `loadHTMLString`. In that fallback path, relative local assets may not render because there is no custom-scheme-backed file access.
+
+The coordinator still cleans up its own temp directory during normal teardown, and pending text updates are flushed after a reload once `webView(_:didFinish:)` fires.
+
+## Preview Viewport Retention
+
+The HTML wrappers install a small JavaScript bridge that reports `window.scrollX` / `window.scrollY` back to Swift via a `WKScriptMessageHandler`.
+
+- User scrolling is throttled with `requestAnimationFrame`.
+- The coordinator writes the latest preview position back to the owning `DocumentPaneView` through `onScrollPositionChanged`.
+- After a full page load, the coordinator restores the saved preview scroll position with `window.scrollTo(...)`, then reports the effective position back to Swift.
+- Tab switching normally returns to the same mounted `WKWebView`; the scroll bridge remains important when the preview subtree is remounted inside the same pane, such as switching between Preview and Split.
 
 ## Coordinator
 
@@ -124,7 +151,9 @@ After a page reload, the coordinator flushes any pending text update once `webVi
 | `currentBaseURL` | `URL?` | Tracks current baseURL for change detection |
 | `pageLoaded` | `Bool` | Set to `true` in `webView(_:didFinish:)` |
 | `renderWorkItem` | `DispatchWorkItem?` | Current debounced render task |
-| `tempFileURL` | `URL` | Unique temp file for `loadFileURL`-based loading |
+| `currentText` | `String` | Last text sent to the web view; avoids re-rendering on scroll-only updates |
+| `schemeHandler` | `PreviewURLSchemeHandler` | Serves staged preview HTML and scoped local assets |
+| `tempStore` | `PreviewTempStore` | Manages the coordinator's app-temp preview directory |
 
 ## ImagePreviewView
 

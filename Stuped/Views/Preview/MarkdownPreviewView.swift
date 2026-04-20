@@ -5,38 +5,55 @@ struct MarkdownPreviewView: NSViewRepresentable {
     let text: String
     let previewType: PreviewType
     var fileURL: URL?
+    var scrollPosition: CGPoint = .zero
+    var onScrollPositionChanged: ((CGPoint) -> Void)? = nil
+
+    private static let scrollMessageHandlerName = "stupedPreviewScroll"
 
     private var baseURL: URL? {
         fileURL?.deletingLastPathComponent()
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(previewType: previewType)
+        Coordinator(self)
     }
 
     func makeNSView(context: Context) -> WKWebView {
-        let webView = WKWebView()
+        let configuration = WKWebViewConfiguration()
+        configuration.setURLSchemeHandler(context.coordinator.schemeHandler, forURLScheme: PreviewURLSchemeHandler.scheme)
+        configuration.userContentController.add(context.coordinator, name: Self.scrollMessageHandlerName)
+
+        let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
         context.coordinator.currentBaseURL = baseURL
+        context.coordinator.currentText = text
 
         let html = Self.buildHTML(text: text, previewType: previewType)
-        context.coordinator.loadHTMLWithFileAccess(html, baseURL: baseURL, into: webView)
+        context.coordinator.loadPreviewHTML(html, baseURL: baseURL, into: webView)
 
         return webView
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
-        if context.coordinator.currentBaseURL != baseURL {
-            // File moved to a different directory — full page reload needed
+        context.coordinator.parent = self
+        if context.coordinator.previewType != previewType || context.coordinator.currentBaseURL != baseURL {
+            // File moved to a different directory or preview type — full page reload needed.
+            context.coordinator.previewType = previewType
             context.coordinator.currentBaseURL = baseURL
+            context.coordinator.currentText = text
             context.coordinator.pageLoaded = false
             let html = Self.buildHTML(text: text, previewType: previewType)
-            context.coordinator.loadHTMLWithFileAccess(html, baseURL: baseURL, into: webView)
+            context.coordinator.loadPreviewHTML(html, baseURL: baseURL, into: webView)
             return
         }
-        context.coordinator.pendingText = text
-        context.coordinator.scheduleRender()
+        context.coordinator.previewType = previewType
+        if context.coordinator.currentText != text {
+            context.coordinator.currentText = text
+            context.coordinator.pendingText = text
+            context.coordinator.scheduleRender()
+        }
+        context.coordinator.restoreScrollPositionIfNeeded()
     }
 
     // MARK: - HTML Builder
@@ -78,6 +95,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
             <div id="content"></div>
             <script src="\(mermaidDataURL)"></script>
             <script>
+                \(scrollBridgeScript())
                 const md = markdownit({
                     html: true,
                     linkify: true,
@@ -117,6 +135,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
 
                 async function renderMarkdown(text) {
                     window._lastMarkdown = text;
+                    const scrollX = window.scrollX;
                     const scrollY = window.scrollY;
                     document.getElementById('content').innerHTML = md.render(text);
 
@@ -133,7 +152,8 @@ struct MarkdownPreviewView: NSViewRepresentable {
                             el.innerHTML = '<div class="mermaid-error">' + e.message + '</div>';
                         }
                     }
-                    window.scrollTo(0, scrollY);
+                    window.scrollTo(scrollX, scrollY);
+                    reportScrollPosition();
                 }
 
                 renderMarkdown(`\(escaped)`);
@@ -155,8 +175,13 @@ struct MarkdownPreviewView: NSViewRepresentable {
         <body>
             <div id="content">\(html)</div>
             <script>
+                \(scrollBridgeScript())
                 function updateContent(newHTML) {
+                    const scrollX = window.scrollX;
+                    const scrollY = window.scrollY;
                     document.getElementById('content').innerHTML = newHTML;
+                    window.scrollTo(scrollX, scrollY);
+                    reportScrollPosition();
                 }
                 // Store initial content for consistency with markdown path
                 updateContent(`\(escaped)`);
@@ -179,6 +204,28 @@ struct MarkdownPreviewView: NSViewRepresentable {
         return "data:\(mimeType);base64,\(encoded)"
     }
 
+    private static func scrollBridgeScript() -> String {
+        """
+        (function() {
+            let scrollReportPending = { value: false };
+            window.reportScrollPosition = function() {
+                const handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.\(scrollMessageHandlerName);
+                if (!handler) { return; }
+                handler.postMessage({ x: window.scrollX, y: window.scrollY });
+            };
+            window.queueScrollReport = function() {
+                if (scrollReportPending.value) { return; }
+                scrollReportPending.value = true;
+                window.requestAnimationFrame(function() {
+                    scrollReportPending.value = false;
+                    window.reportScrollPosition();
+                });
+            };
+            window.addEventListener('scroll', window.queueScrollReport, { passive: true });
+        })();
+        """
+    }
+
     private static func loadResource(_ name: String, ext: String) -> String {
         if let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: "Resources") {
             return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
@@ -191,59 +238,70 @@ struct MarkdownPreviewView: NSViewRepresentable {
 
     // MARK: - Coordinator
 
-    class Coordinator: NSObject, WKNavigationDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+        var parent: MarkdownPreviewView
         weak var webView: WKWebView?
         var pendingText: String?
+        var currentText: String
         var previewType: PreviewType
         var currentBaseURL: URL?
         private var renderWorkItem: DispatchWorkItem?
         var pageLoaded = false
+        private var lastRestoredScrollPosition: CGPoint?
 
-        private let tempFileName = ".stuped-preview-\(UUID().uuidString).html"
-        private var tempFileURL: URL?
+        let schemeHandler = PreviewURLSchemeHandler()
+        private let tempStore = PreviewTempStore()
 
-        init(previewType: PreviewType) {
-            self.previewType = previewType
+        init(_ parent: MarkdownPreviewView) {
+            self.parent = parent
+            self.currentText = parent.text
+            self.previewType = parent.previewType
         }
 
         deinit {
-            if let tempFileURL {
-                try? FileManager.default.removeItem(at: tempFileURL)
-            }
+            renderWorkItem?.cancel()
+            schemeHandler.clearSession()
+            tempStore.cleanup()
         }
 
-        func loadHTMLWithFileAccess(_ html: String, baseURL: URL?, into webView: WKWebView) {
-            guard let baseURL = baseURL else {
-                webView.loadHTMLString(html, baseURL: nil)
-                return
+        func loadPreviewHTML(_ html: String, baseURL: URL?, into webView: WKWebView) {
+            let finalHTML: String
+            if baseURL != nil {
+                let baseTag = "<base href=\"\(PreviewURLSchemeHandler.rootURL.absoluteString)\">"
+                finalHTML = html.replacingOccurrences(of: "<head>", with: "<head>\n    \(baseTag)")
+            } else {
+                finalHTML = html
             }
-            let baseTag = "<base href=\"\(baseURL.absoluteString)\">"
-            let finalHTML = html.replacingOccurrences(of: "<head>", with: "<head>\n    \(baseTag)")
+
             do {
-                let newTempFileURL = baseURL.appendingPathComponent(tempFileName)
-                if tempFileURL != newTempFileURL, let oldTempFileURL = tempFileURL {
-                    try? FileManager.default.removeItem(at: oldTempFileURL)
-                }
-                tempFileURL = newTempFileURL
+                let htmlFileURL = try tempStore.write(html: finalHTML)
+                schemeHandler.update(htmlFileURL: htmlFileURL, baseURL: baseURL)
 
-                guard let tempFileURL else {
-                    webView.loadHTMLString(html, baseURL: baseURL)
-                    return
-                }
-
-                try finalHTML.write(to: tempFileURL, atomically: true, encoding: .utf8)
-                // Restrict read access to only the directory containing the file
-                webView.loadFileURL(tempFileURL, allowingReadAccessTo: baseURL)
+                var request = URLRequest(url: PreviewURLSchemeHandler.previewURL)
+                request.cachePolicy = .reloadIgnoringLocalCacheData
+                webView.load(request)
             } catch {
+                print("[Stuped] Failed to stage preview HTML: \(error.localizedDescription)")
                 webView.loadHTMLString(html, baseURL: baseURL)
             }
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             pageLoaded = true
+            restoreScrollPosition()
             if pendingText != nil {
                 scheduleRender()
             }
+        }
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.name == MarkdownPreviewView.scrollMessageHandlerName,
+                  let payload = message.body as? [String: Any],
+                  let x = payload["x"] as? Double,
+                  let y = payload["y"] as? Double else { return }
+            let position = CGPoint(x: x, y: y)
+            lastRestoredScrollPosition = position
+            parent.onScrollPositionChanged?(position)
         }
 
         func scheduleRender() {
@@ -273,6 +331,31 @@ struct MarkdownPreviewView: NSViewRepresentable {
                 if let error = error {
                     print("[Stuped] Render error: \(error.localizedDescription)")
                 }
+            }
+        }
+
+        func restoreScrollPositionIfNeeded() {
+            guard lastRestoredScrollPosition != parent.scrollPosition else { return }
+            restoreScrollPosition()
+        }
+
+        private func restoreScrollPosition() {
+            guard pageLoaded, let webView else { return }
+            let x = parent.scrollPosition.x
+            let y = parent.scrollPosition.y
+            let jsCall = """
+            window.scrollTo(\(x), \(y));
+            window.requestAnimationFrame(function() {
+                window.scrollTo(\(x), \(y));
+                if (window.reportScrollPosition) { window.reportScrollPosition(); }
+            });
+            """
+            webView.evaluateJavaScript(jsCall) { [weak self] _, error in
+                if let error = error {
+                    print("[Stuped] Preview scroll restore error: \(error.localizedDescription)")
+                    return
+                }
+                self?.lastRestoredScrollPosition = CGPoint(x: x, y: y)
             }
         }
     }
