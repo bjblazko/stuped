@@ -13,8 +13,11 @@ struct FolderBrowserView: View {
 
 
     private var windowTitle: String {
+        if let activeTab = tabManager.activeTab {
+            return activeTab.displayName
+        }
         if let selected = folderState.selectedFileURL {
-            return selected.deletingLastPathComponent().lastPathComponent
+            return selected.lastPathComponent
         }
         return folderState.folderURL?.lastPathComponent ?? "Folder"
     }
@@ -98,7 +101,7 @@ struct FolderBrowserView: View {
         if showRecentItems {
             recentItemsCycleTrigger += 1
         } else {
-            recentItemsInitialIndex = tabManager.recentTabIDs.count > 1 ? 1 : 0
+            recentItemsInitialIndex = tabManager.historyURLsByRecency.count > 1 ? 1 : 0
             recentItemsCycleTrigger = 0
             showRecentItems = true
         }

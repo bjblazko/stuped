@@ -8,6 +8,8 @@ class FileTreeModel {
     var rootURL: URL?
     var showHiddenFiles = false
     var expandedURLs: Set<URL> = []
+    var revealTargetURL: URL?
+    var revealRequestID = 0
 
     private var eventStream: FSEventStreamRef?
     private let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .nameKey, .isHiddenKey]
@@ -19,8 +21,16 @@ class FileTreeModel {
     func loadDirectory(at url: URL) {
         self.rootURL = url
         self.expandedURLs = [url] // Start with root expanded
+        self.revealTargetURL = nil
         rebuildTree()
         startWatching(url: url)
+    }
+
+    func reveal(_ targetURL: URL) {
+        guard rootURL != nil else { return }
+        expandToURL(targetURL)
+        revealTargetURL = targetURL
+        revealRequestID += 1
     }
 
     /// Expands all ancestor directories from rootURL down to (but not including) targetURL.

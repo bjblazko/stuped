@@ -18,6 +18,7 @@ By [Hüpattl! Software](https://huepattl.de)
 
 - **Code editing** with syntax highlighting (150+ languages via highlight.js), line numbers, and find bar
 - **In-window tabs** in folder mode — each opened file gets a tab; unsaved changes are preserved per tab; right-click a tab to copy its name, project-relative path, or full path
+- **Session back/forward navigation** in folder mode — Finder-style toolbar buttons walk the files you opened during the current run, including reopening files whose tabs were closed later
 - **Markdown preview** with GitHub-flavored rendering, code blocks, and Mermaid diagrams
 - **HTML preview** with live rendering in a WebView
 - **Image preview** for PNG, JPEG, GIF, BMP, TIFF, WebP, HEIC, and ICO files
@@ -29,9 +30,9 @@ By [Hüpattl! Software](https://huepattl.de)
 - **Status bar** with cursor position, line count, indentation, line endings, and encoding
 - **Dark/light mode** support throughout, including preview themes
 - **Folder browsing** mode for exploring project directories
-- **Recent files & folders** — macOS `File > Open Recent` keeps handling document history, while Stuped keeps its own recent-folder history in a dedicated menu and the folder-mode Cmd+R quick switcher
+- **Recent files & folders** — macOS `File > Open Recent` keeps handling document history, while Stuped keeps its own recent-folder history in a dedicated menu and the folder-mode Cmd+R quick switcher, which prefers the current session's file history first
 - **Global file search** (Cmd+Shift+F) — a native resizable panel that searches all files in the open folder tree by filename, contents, or both simultaneously; an inline `ext:` field narrows results to a specific file extension; results and a line-level preview are shown in a draggable split view; navigate with ↑/↓, open with Enter, dismiss with Escape
-- **Reveal in File Tree** (Cmd+Shift+J) — expands and highlights the active file's node in the sidebar; useful after opening a file from search or recent files. Also accessible via right-click on any tab.
+- **Reveal in File Tree** (Cmd+Shift+J) — expands, scrolls to, and highlights the active file's node in the sidebar; useful after opening a file from search or recent files. Also accessible via right-click on any tab.
 - **View Options toolbar menu** — a single `slider.horizontal.3` toolbar button opens a dropdown with all view toggles (Word Wrap, Mini-Map, Show Dot Files) and navigation shortcuts (Reveal in File Tree, Recent Files & Folders, Search Files); active toggles show a checkmark
 - **Binary file detection** (null-byte scanning in first 8 KB)
 
@@ -102,6 +103,10 @@ Hover over each icon to see its tooltip. The overlay is hidden for plain source 
 | Cmd+F | Find in editor |
 | Cmd+Option+F | Find & Replace in editor |
 
+### Folder navigation
+
+In folder mode, the toolbar shows Finder-style **Back** / **Forward** buttons for the current session's file history. Going back or forward activates an existing tab when possible and reopens the file if that tab was closed later. The window title shows the active file name and falls back to the opened folder name when nothing is selected.
+
 ### Path bar
 
 The path bar above the editor shows the full file path. Click any component to navigate the sidebar to that directory. Right-click any component to open the same `Copy Path` submenu used in tabs and the file tree:
@@ -112,7 +117,7 @@ The path bar above the editor shows the full file path. Click any component to n
 
 ### Tabs and file tree
 
-In folder mode, right-click any tab or file-tree item to open a `Copy Path` submenu with:
+In folder mode, right-click any tab to access `Reveal in File Tree` plus the shared `Copy Path` submenu. File-tree items expose the same `Copy Path` submenu with:
 
 - **Name Only**
 - **Relative to Project Root**

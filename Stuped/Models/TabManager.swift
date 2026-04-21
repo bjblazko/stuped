@@ -6,6 +6,9 @@ final class TabManager {
     var activeTabID: TabItem.ID?
     /// Tab IDs ordered from most-recently to least-recently accessed (index 0 = current).
     var recentTabIDs: [TabItem.ID] = []
+    /// Linear file-navigation history for the current folder-browsing session.
+    private(set) var historyURLs: [URL] = []
+    private(set) var historyIndex: Int?
 
     private var watchedFDs: [TabItem.ID: (fd: Int32, source: DispatchSourceFileSystemObject)] = [:]
 
@@ -18,44 +21,129 @@ final class TabManager {
         recentTabIDs.compactMap { id in tabs.first { $0.id == id } }
     }
 
+    var canGoBack: Bool {
+        guard let historyIndex else { return false }
+        return historyIndex > 0
+    }
+
+    var canGoForward: Bool {
+        guard let historyIndex else { return false }
+        return historyIndex < historyURLs.count - 1
+    }
+
+    /// Unique file URLs ordered with the current history item first, then the
+    /// remaining session history from most-recently visited to least-recently visited.
+    var historyURLsByRecency: [URL] {
+        var seenPaths = Set<String>()
+        var urls: [URL] = []
+
+        if let historyIndex, historyURLs.indices.contains(historyIndex) {
+            let currentURL = historyURLs[historyIndex]
+            seenPaths.insert(currentURL.path)
+            urls.append(currentURL)
+        }
+
+        for url in historyURLs.reversed() {
+            if seenPaths.insert(url.path).inserted {
+                urls.append(url)
+            }
+        }
+
+        return urls
+    }
+
     /// Opens a file: switches to it if already open, otherwise loads from disk and creates a new tab.
     /// Posts `.stupedTabSwitched` only when switching to an existing tab (new tabs are handled
     /// by ContentView's onChange flow).
-    func open(url: URL) {
+    @discardableResult
+    func open(url: URL, trackHistory: Bool = true) -> Bool {
+        let normalizedURL = url.standardizedFileURL
         var isDirectory: ObjCBool = false
-        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-           isDirectory.boolValue {
-            return
+        guard FileManager.default.fileExists(atPath: normalizedURL.path, isDirectory: &isDirectory),
+              !isDirectory.boolValue else {
+            return false
         }
 
-        if let existing = tabs.first(where: { $0.fileURL == url }) {
-            guard activeTabID != existing.id else { return }
+        if let existing = tabs.first(where: { $0.fileURL == normalizedURL }) {
+            guard activeTabID != existing.id else {
+                if trackHistory {
+                    recordHistory(normalizedURL)
+                }
+                return true
+            }
+
             activeTabID = existing.id
             recordAccess(existing.id)
+            if trackHistory {
+                recordHistory(normalizedURL)
+            }
             NotificationCenter.default.post(
                 name: .stupedTabSwitched,
                 object: nil,
-                userInfo: ["url": url]
+                userInfo: ["url": normalizedURL]
             )
-            return
+            return true
         }
 
-        let text = Self.loadText(from: url)
-        let tab = TabItem(fileURL: url, text: text)
+        let text = Self.loadText(from: normalizedURL)
+        let tab = TabItem(fileURL: normalizedURL, text: text)
         tabs.append(tab)
         startWatching(tab)
         activeTabID = tab.id
         recordAccess(tab.id)
+        if trackHistory {
+            recordHistory(normalizedURL)
+        }
         NotificationCenter.default.post(
             name: .stupedTabSwitched,
             object: nil,
-            userInfo: ["url": url]
+            userInfo: ["url": normalizedURL]
         )
+        return true
     }
 
     private func recordAccess(_ id: TabItem.ID) {
         recentTabIDs.removeAll { $0 == id }
         recentTabIDs.insert(id, at: 0)
+    }
+
+    private func recordHistory(_ url: URL) {
+        if let historyIndex, historyURLs.indices.contains(historyIndex), historyURLs[historyIndex] == url {
+            return
+        }
+
+        if let historyIndex, historyIndex < historyURLs.count - 1 {
+            historyURLs.removeSubrange((historyIndex + 1)...)
+        }
+
+        historyURLs.append(url)
+        self.historyIndex = historyURLs.count - 1
+    }
+
+    @discardableResult
+    func goBack() -> Bool {
+        navigateHistory(by: -1)
+    }
+
+    @discardableResult
+    func goForward() -> Bool {
+        navigateHistory(by: 1)
+    }
+
+    @discardableResult
+    private func navigateHistory(by delta: Int) -> Bool {
+        guard let historyIndex else { return false }
+        let targetIndex = historyIndex + delta
+        return navigateHistory(to: targetIndex)
+    }
+
+    @discardableResult
+    private func navigateHistory(to targetIndex: Int) -> Bool {
+        guard historyURLs.indices.contains(targetIndex) else { return false }
+        let targetURL = historyURLs[targetIndex]
+        guard open(url: targetURL, trackHistory: false) else { return false }
+        historyIndex = targetIndex
+        return true
     }
 
     func close(_ id: TabItem.ID) {
@@ -68,10 +156,13 @@ final class TabManager {
 
         if tabs.isEmpty {
             activeTabID = nil
+            NotificationCenter.default.post(name: .stupedTabSwitched, object: nil)
         } else {
             let newIdx = min(idx, tabs.count - 1)
             let next = tabs[newIdx]
             activeTabID = next.id
+            recordAccess(next.id)
+            recordHistory(next.fileURL)
             NotificationCenter.default.post(
                 name: .stupedTabSwitched,
                 object: nil,
@@ -89,6 +180,8 @@ final class TabManager {
         tabs.removeAll()
         activeTabID = nil
         recentTabIDs.removeAll()
+        historyURLs.removeAll()
+        historyIndex = nil
     }
 
     // MARK: - File watching

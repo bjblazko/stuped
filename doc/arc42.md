@@ -10,12 +10,13 @@ Stuped is a native macOS code editor and file browser providing:
 - Live Markdown and HTML preview with Mermaid diagram support
 - File tree sidebar with real-time directory watching
 - In-window tab management for folder mode
+- Finder-style back/forward navigation through the current folder-session's file history
 - Mini-map overview panel with syntax-colour bars, selection overlay, and click-to-scroll
 - Word wrap toggle (hard line breaks vs. unbounded horizontal scroll)
-- Recent-files command palette (Cmd+R) showing open tabs and macOS file history
+- Recent-files command palette (Cmd+R) seeded by the current session's file history, then macOS file history and recent folders
 - Git branch and remote origin display
 - Path bar with clickable breadcrumb navigation
-- "Reveal in File Tree" (Cmd+Shift+J) to expand and highlight the active file in the sidebar
+- "Reveal in File Tree" (Cmd+Shift+J) to expand, scroll to, and highlight the active file in the sidebar
 - View Options toolbar menu consolidating all view toggles and navigation shortcuts
 
 ### Quality Goals
@@ -76,7 +77,7 @@ graph LR
 
 | Goal | Strategy |
 |------|----------|
-| Native feel | SwiftUI for layout; AppKit NSTextView for editing; retain one document pane per open tab |
+| Native feel | SwiftUI for layout; AppKit NSTextView for editing; retain one document pane per open tab and expose Finder-style toolbar history controls in folder mode |
 | Rich preview | WKWebView with bundled markdown-it + mermaid.js, staging generated preview HTML under the user's temp directory and serving relative assets through a custom URL scheme |
 | Responsiveness | Debounced highlighting (150ms) and preview (300ms) |
 | File awareness | kqueue-based directory watching via DispatchSource |

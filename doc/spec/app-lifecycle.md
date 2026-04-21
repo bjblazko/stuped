@@ -84,6 +84,7 @@ class AppDelegate: NSObject, NSApplicationDelegate
 - `activeFileURL` returns `sidebarFileURL` (selected in sidebar).
 - Sidebar visible by default (`.all`).
 - `setupFileTree()` is a no-op; the tree is loaded via `.stupedFolderOpened` notification.
+- The window title follows the active file name; when no file is selected, it falls back to the opened folder name.
 
 ## Folder Opening Flow
 
@@ -118,6 +119,8 @@ class FolderBrowserState {
 2. `TabManager.open(url:)`: if tab already exists, switches to it and posts `.stupedTabSwitched`; otherwise loads the file from disk, creates a `TabItem`, and makes it active.
 3. `FolderBrowserView.activeDocumentBinding` exposes `tabManager.activeTab.text` as a `Binding<StupedDocument>` to `ContentView`.
 4. On tab switch, `ContentView` receives `.stupedTabSwitched`, updates `sidebarFileURL` (sidebar highlight), and makes the target tab's already-mounted `DocumentPaneView` visible without re-reading the file from disk.
+5. `TabManager` also maintains a linear session-history of visited file URLs. Toolbar back/forward actions move through that history, switching to an existing tab or reopening a previously closed file as needed.
+6. The folder-mode `Cmd+R` popup seeds its file list from this session history first, then appends macOS document recents and Stuped-managed recent folders.
 
 `TabItem` stores:
 - `fileURL` — immutable

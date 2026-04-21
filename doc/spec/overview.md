@@ -41,13 +41,14 @@ graph TD
 ## Data Flow
 
 1. **File selection** flows from `FileTreeSidebar` → `onFileSelected` callback → `TabManager.open(url:)` which loads the file (if new) or switches to the existing tab. The active tab's text is bound back to `ContentView` via `FolderBrowserView.activeDocumentBinding`.
-2. **Tab switching** is signalled by the `.stupedTabSwitched` notification. `ContentView` receives it to update the sidebar highlight and switch which already-mounted `DocumentPaneView` is visible, so the tab's live editor/preview context remains intact without re-reading the file from disk.
-3. **Reveal in File Tree** is triggered by the `.stupedRevealInFileTree` notification (optionally carrying a `"url"` key). `ContentView` calls `FileTreeModel.expandToURL(_:)` to populate `expandedURLs`, then sets `sidebarFileURL` and `columnVisibility = .all`.
-4. **Copy Path** actions in tab and file-tree context menus derive name-only, project-relative, and absolute clipboard strings from the selected URL. Relative paths are always based on `FolderBrowserState.folderURL`, even if the sidebar is currently narrowed to a subfolder.
-5. **Text editing** flows from `NSTextView` through the `Coordinator` delegate back to `document.text` → `TabManager.activeTab.text`, marking the tab dirty (`isDirty = true`).
-6. **Saving** writes `document.text` to `sidebarFileURL`; the `onFileSaved` callback clears the tab's dirty flag.
-7. **Git info** is fetched asynchronously via `Process` inside each `DocumentPaneView` and displayed by its `PathBarView`.
-8. **File tree updates** are triggered by kqueue file system events, which rebuild the `FileTreeModel.rootNode` tree.
+2. **Session history navigation** is owned by `TabManager`, which records a linear file history for the current folder session. Folder-mode toolbar Back / Forward buttons call `goBack()` / `goForward()` to switch tabs or reopen files that were closed later.
+3. **Tab switching** is signalled by the `.stupedTabSwitched` notification. `ContentView` receives it to update the sidebar highlight and switch which already-mounted `DocumentPaneView` is visible, so the tab's live editor/preview context remains intact without re-reading the file from disk.
+4. **Reveal in File Tree** is triggered by the `.stupedRevealInFileTree` notification (optionally carrying a `"url"` key). `ContentView` routes the request through `FileTreeModel.reveal(_:)`, which expands ancestor folders and records the target row for the sidebar. `FileTreeSidebar` then scrolls that row into view, while `ContentView` sets `sidebarFileURL` and `columnVisibility = .all`.
+5. **Copy Path** actions in tab and file-tree context menus derive name-only, project-relative, and absolute clipboard strings from the selected URL. Relative paths are always based on `FolderBrowserState.folderURL`, even if the sidebar is currently narrowed to a subfolder.
+6. **Text editing** flows from `NSTextView` through the `Coordinator` delegate back to `document.text` → `TabManager.activeTab.text`, marking the tab dirty (`isDirty = true`).
+7. **Saving** writes `document.text` to `sidebarFileURL`; the `onFileSaved` callback clears the tab's dirty flag.
+8. **Git info** is fetched asynchronously via `Process` inside each `DocumentPaneView` and displayed by its `PathBarView`.
+9. **File tree updates** are triggered by kqueue file system events, which rebuild the `FileTreeModel.rootNode` tree.
 
 ## Technology Stack
 
@@ -77,13 +78,13 @@ Stuped/
     LanguageMap.swift           Extension-to-language mapping, PreviewType
     RecentFoldersStore.swift    Persisted recent-folder history for folder mode
     TabItem.swift               Per-tab state (fileURL, text, dirty tracking, view mode)
-    TabManager.swift            Tab list management and file loading
+    TabManager.swift            Tab list management, file loading, and session history
   Views/
     AboutView.swift             Custom About dialog
     ContentView.swift           Workspace layout, toolbar, pane visibility coordination
     DocumentPaneView.swift      Retained per-document pane with path bar, editor/preview, status bar
     FolderBrowserView.swift     Folder-browser window wrapper, owns TabManager
-    PathBarView.swift           Breadcrumb path bar with git branch
+    PathBarView.swift           Breadcrumb path bar with git branch; folder-mode history buttons stay in the native toolbar
     StatusBarView.swift         Bottom metadata bar
     TabBarView.swift            Horizontal tab strip for folder mode
     RecentFilesPopupView.swift  Cmd+R floating recent-items popup (files + folders)

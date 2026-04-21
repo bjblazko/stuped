@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Folder mode now keeps a **per-session file history** with Finder-style **Back** / **Forward** toolbar buttons. History navigation can switch to an existing tab or reopen a file whose tab was closed later in the session.
+
+### Changed
+
+- The folder-browser window title now shows the **active filename** and falls back to the folder name when no file is selected.
+- The folder-mode **Cmd+R** quick switcher now prefers the current session's file history, so recently visited files from this run appear first even if their tabs are currently closed.
+
+### Fixed
+
+- `Reveal in File Tree` now scrolls the sidebar so the revealed file stays visible and highlighted even when it lives deep in the project tree.
+
 ## [0.5.4] - 2026-04-21
 
 ### Added

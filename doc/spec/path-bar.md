@@ -4,7 +4,7 @@
 
 ## Overview
 
-A horizontal bar above the editor showing the full file path as clickable breadcrumb components, plus the git branch name.
+A horizontal bar above the editor showing the full file path as clickable breadcrumb components, plus the git branch name. In folder mode, Finder-style Back / Forward controls live in the native window toolbar, while the path bar itself remains focused on breadcrumb navigation and git context.
 
 ## Parameters
 
@@ -17,10 +17,10 @@ A horizontal bar above the editor showing the full file path as clickable breadc
 
 ## Layout
 
-```
-+----------------------------------------------------------------------+
-| [folder] Users > [folder] name > [folder] project > [doc] file.swift | [branch] main |
-+----------------------------------------------------------------------+
+```mermaid
+flowchart LR
+    TB["Window toolbar<br/>Back / Forward (folder mode)"] --> PB["PathBarView<br/>folder > project > file.swift"]
+    PB --> GB["Git branch badge<br/>main"]
 ```
 
 ### Left section: path components
@@ -43,6 +43,12 @@ A horizontal bar above the editor showing the full file path as clickable breadc
 - Icon: `arrow.triangle.branch` (10pt, secondary).
 - Text: branch name (11pt, secondary, single line).
 - Tooltip (`.help`): `gitInfo?.remoteURL ?? "No remote configured"`.
+
+## Relationship to folder-mode history controls
+
+- Folder mode adds Finder-style Back / Forward buttons in `ContentView.toolbarContent` using `ToolbarItemGroup(placement: .navigation)`.
+- Those buttons operate on `TabManager`'s linear per-session file history and can switch to an already-open tab or reopen a file whose tab was closed.
+- The path bar does not own that history state; it continues to expose only breadcrumb navigation through `onNavigate`.
 
 ## Styling
 

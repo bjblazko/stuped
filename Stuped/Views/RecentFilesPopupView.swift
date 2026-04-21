@@ -52,12 +52,17 @@ struct RecentItemsPopupView: View {
 
     private var filteredItems: [RecentItem] {
         let openURLs = Set(tabManager.tabs.map(\.fileURL))
+        let sessionHistoryURLs = tabManager.historyURLsByRecency
+        let sessionHistoryPaths = Set(sessionHistoryURLs.map(\.path))
 
-        let openItems = tabManager.tabsByRecency
-            .map { RecentItem(url: $0.fileURL, kind: .openFile) }
+        let sessionHistoryItems = sessionHistoryURLs.map { url in
+            let kind: RecentItemKind = openURLs.contains(url) ? .openFile : .recentFile
+            return RecentItem(url: url, kind: kind)
+        }
 
         let recentFileItems = NSDocumentController.shared.recentDocumentURLs
-            .filter { !openURLs.contains($0) }
+            .map(\.standardizedFileURL)
+            .filter { !sessionHistoryPaths.contains($0.path) }
             .prefix(10)
             .map { RecentItem(url: $0, kind: .recentFile) }
 
@@ -65,7 +70,7 @@ struct RecentItemsPopupView: View {
             .prefix(10)
             .map { RecentItem(url: $0, kind: .recentFolder) }
 
-        let all = openItems + recentFileItems + recentFolderItems
+        let all = sessionHistoryItems + recentFileItems + recentFolderItems
 
         guard !searchText.isEmpty else { return all }
         let lower = searchText.lowercased()

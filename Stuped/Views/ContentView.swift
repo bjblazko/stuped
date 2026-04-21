@@ -178,16 +178,14 @@ struct ContentView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .stupedTabSwitched)) { notification in
-            guard isFolderMode, let url = notification.userInfo?["url"] as? URL else { return }
-            sidebarFileURL = url
+            guard isFolderMode else { return }
+            sidebarFileURL = notification.userInfo?["url"] as? URL
         }
         .onReceive(NotificationCenter.default.publisher(for: .stupedRevealInFileTree)) { notification in
             guard isFolderMode else { return }
             let url = (notification.userInfo?["url"] as? URL) ?? tabManager?.activeTab?.fileURL
             guard let url else { return }
-            treeModel.expandToURL(url)
-            sidebarFileURL = url
-            columnVisibility = .all
+            revealInFileTree(url)
         }
         .onReceive(NotificationCenter.default.publisher(for: .stupedSetViewMode)) { notification in
             guard isPreviewable,
@@ -242,6 +240,28 @@ struct ContentView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        if isFolderMode, let tabManager {
+            ToolbarItemGroup(placement: .navigation) {
+                Button {
+                    tabManager.goBack()
+                } label: {
+                    Image(systemName: "chevron.backward")
+                }
+                .accessibilityLabel("Back")
+                .help("Back")
+                .disabled(!tabManager.canGoBack)
+
+                Button {
+                    tabManager.goForward()
+                } label: {
+                    Image(systemName: "chevron.forward")
+                }
+                .accessibilityLabel("Forward")
+                .help("Forward")
+                .disabled(!tabManager.canGoForward)
+            }
+        }
+
         ToolbarItemGroup(placement: .automatic) {
             Button(action: openFileAction) {
                 Label("Open File", systemImage: "doc")
@@ -299,9 +319,7 @@ struct ContentView: View {
                     if isFolderMode {
                         Button("Reveal in File Tree") {
                             guard let url = tabManager?.activeTab?.fileURL else { return }
-                            treeModel.expandToURL(url)
-                            sidebarFileURL = url
-                            columnVisibility = .all
+                            revealInFileTree(url)
                         }
                         .disabled(tabManager?.activeTab == nil)
                     }
@@ -416,6 +434,12 @@ struct ContentView: View {
         } else {
             NSApp.sendAction(#selector(NSDocument.save(_:)), to: nil, from: nil)
         }
+    }
+
+    private func revealInFileTree(_ url: URL) {
+        treeModel.reveal(url)
+        sidebarFileURL = url
+        columnVisibility = .all
     }
 
     private func saveCurrentFile() {
