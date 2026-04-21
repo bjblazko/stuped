@@ -1,7 +1,9 @@
 import SwiftUI
+import AppKit
 
 struct TabBarView: View {
     var tabManager: TabManager
+    let projectRootURL: URL?
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -10,7 +12,8 @@ struct TabBarView: View {
                     TabCell(
                         tab: tab,
                         isActive: tab.id == tabManager.activeTabID,
-                        hasOtherTabs: tabManager.tabs.count > 1
+                        hasOtherTabs: tabManager.tabs.count > 1,
+                        projectRootURL: projectRootURL
                     ) {
                         tabManager.open(url: tab.fileURL)
                     } onClose: {
@@ -30,10 +33,61 @@ struct TabBarView: View {
     }
 }
 
+struct CopyPathMenu: View {
+    let url: URL
+    let projectRootURL: URL?
+
+    var body: some View {
+        let relativePath = CopyPathSupport.relativePath(for: url, projectRootURL: projectRootURL)
+
+        return Menu("Copy Path") {
+            Button("Name Only") {
+                CopyPathSupport.copy(url.lastPathComponent)
+            }
+
+            Button("Relative to Project Root") {
+                guard let relativePath else { return }
+                CopyPathSupport.copy(relativePath)
+            }
+            .disabled(relativePath == nil)
+
+            Button("Full Path") {
+                CopyPathSupport.copy(url.path)
+            }
+        }
+    }
+}
+
+enum CopyPathSupport {
+    static func copy(_ string: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(string, forType: .string)
+    }
+
+    static func relativePath(for url: URL, projectRootURL: URL?) -> String? {
+        guard let projectRootURL else { return nil }
+
+        let standardizedRootURL = projectRootURL.standardizedFileURL.resolvingSymlinksInPath()
+        let standardizedURL = url.standardizedFileURL.resolvingSymlinksInPath()
+        let rootPath = standardizedRootURL.path
+        let candidatePath = standardizedURL.path
+
+        if candidatePath == rootPath {
+            return "."
+        }
+
+        let rootPrefix = rootPath.hasSuffix("/") ? rootPath : rootPath + "/"
+        guard candidatePath.hasPrefix(rootPrefix) else { return nil }
+
+        return String(candidatePath.dropFirst(rootPrefix.count))
+    }
+}
+
 private struct TabCell: View {
     let tab: TabItem
     let isActive: Bool
     let hasOtherTabs: Bool
+    let projectRootURL: URL?
     let onSelect: () -> Void
     let onClose: () -> Void
     let onCloseOthers: () -> Void
@@ -79,6 +133,8 @@ private struct TabCell: View {
             Button("Close Tab", action: onClose)
             Button("Close Others", action: onCloseOthers)
                 .disabled(!hasOtherTabs)
+            Divider()
+            CopyPathMenu(url: tab.fileURL, projectRootURL: projectRootURL)
             Divider()
             Button("Reveal in File Tree") {
                 NotificationCenter.default.post(

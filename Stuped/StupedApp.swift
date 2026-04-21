@@ -48,6 +48,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 struct StupedApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.openWindow) private var openWindow
+    @State private var recentFoldersStore = RecentFoldersStore.shared
     @AppStorage("editor.wordWrap") private var wordWrap: Bool = false
     @AppStorage("editor.showMiniMap") private var showMiniMap: Bool = true
     @AppStorage("fileTree.showHiddenFiles") private var showHiddenFiles: Bool = false
@@ -135,6 +136,7 @@ struct StupedApp: App {
                     .keyboardShortcut("e")
                 }
             }
+            recentFoldersCommands
         }
 
         // About
@@ -154,8 +156,8 @@ struct StupedApp: App {
         .defaultSize(width: 900, height: 600)
         .commands {
             CommandGroup(after: .sidebar) {
-                Button("Recent Files") {
-                    NotificationCenter.default.post(name: .stupedToggleRecentFiles, object: nil)
+                Button("Recent Files & Folders") {
+                    NotificationCenter.default.post(name: .stupedToggleRecentItems, object: nil)
                 }
                 .keyboardShortcut("r")
 
@@ -169,6 +171,7 @@ struct StupedApp: App {
                 }
                 .keyboardShortcut("j", modifiers: [.command, .shift])
             }
+            recentFoldersCommands
         }
     }
 
@@ -186,12 +189,56 @@ struct StupedApp: App {
         panel.message = "Choose a folder to open in Stuped"
 
         if panel.runModal() == .OK, let url = panel.url {
-            FolderBrowserState.shared.openFolder(url: url)
-            openWindow(
-                id: AppWindowID.folderBrowser,
-                value: AppWindowValue.folderBrowserSingleton
-            )
+            openFolder(url: url)
         }
+    }
+
+    private func openFolder(url: URL) {
+        FolderBrowserState.shared.openFolder(url: url)
+        openWindow(
+            id: AppWindowID.folderBrowser,
+            value: AppWindowValue.folderBrowserSingleton
+        )
+    }
+
+    @CommandsBuilder
+    private var recentFoldersCommands: some Commands {
+        CommandMenu("Recent Folders") {
+            if recentFoldersStore.recentFolders.isEmpty {
+                Button("No Recent Folders") {}
+                    .disabled(true)
+            } else {
+                ForEach(recentFoldersStore.recentFolders, id: \.path) { url in
+                    Button(recentFolderMenuTitle(for: url)) {
+                        openFolder(url: url)
+                    }
+                }
+            }
+
+            Divider()
+
+            Button("Clear Recent Folders") {
+                recentFoldersStore.clear()
+            }
+            .disabled(recentFoldersStore.recentFolders.isEmpty)
+        }
+    }
+
+    private func recentFolderMenuTitle(for url: URL) -> String {
+        let parentPath = abbreviatedPath(for: url.deletingLastPathComponent())
+        guard !parentPath.isEmpty, parentPath != "/" else {
+            return url.lastPathComponent
+        }
+        return "\(url.lastPathComponent) — \(parentPath)"
+    }
+
+    private func abbreviatedPath(for url: URL) -> String {
+        let path = url.path
+        let homePath = FileManager.default.homeDirectoryForCurrentUser.path
+        if path.hasPrefix(homePath) {
+            return "~" + path.dropFirst(homePath.count)
+        }
+        return path
     }
 }
 
@@ -207,8 +254,10 @@ class FolderBrowserState {
     var treeRootURL: URL?
 
     func openFolder(url: URL) {
-        self.folderURL  = url
-        self.treeRootURL = url   // reset to project root on fresh open
+        let normalizedURL = url.standardizedFileURL
+        RecentFoldersStore.shared.record(normalizedURL)
+        self.folderURL = normalizedURL
+        self.treeRootURL = normalizedURL   // reset to project root on fresh open
         self.selectedFileURL = nil
     }
 }

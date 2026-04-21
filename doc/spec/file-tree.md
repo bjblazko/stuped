@@ -136,6 +136,7 @@ A SwiftUI `List` with `.sidebar` style rendered via explicit `DisclosureGroup` e
 | `rootNode` | `FileNode?` | Tree root from `FileTreeModel` |
 | `selectedFileURL` | `Binding<URL?>` | Currently selected file |
 | `expandedURLs` | `Binding<Set<URL>>` | Directories currently expanded |
+| `projectRootURL` | `URL?` | Originally opened project root used for relative-path copy actions |
 
 ### Behavior
 
@@ -143,6 +144,8 @@ A SwiftUI `List` with `.sidebar` style rendered via explicit `DisclosureGroup` e
 - Each directory node is rendered as a `DisclosureGroup` whose `isExpanded` binding reads from and writes to `expandedURLs`. Clicking a folder expands/collapses it without entering the editor-tab flow. Programmatic expansion (e.g., "Reveal in File Tree") updates the set via `FileTreeModel.expandToURL(_:)`.
 - Each file node is rendered as a tappable `Label`; tapping it updates `selectedFileURL`, which drives folder-mode tab opening in `ContentView`.
 - Each label shows `Text(node.name)` and a tinted `Image(systemName: node.iconName).foregroundStyle(node.iconColor)`.
+- File and folder rows expose a `Copy Path` context submenu with `Name Only`, `Relative to Project Root`, and `Full Path` actions.
+- Relative paths are derived from the originally opened project root (`FolderBrowserState.folderURL`), not the currently narrowed tree root.
 - Shows `ContentUnavailableView` if no root node or empty children.
 
 > **ADR-0014**: The sidebar switched from `List(_:children:selection:)` (auto-managed expansion) to explicit `DisclosureGroup` to support programmatic expansion for the "Reveal in File Tree" feature.

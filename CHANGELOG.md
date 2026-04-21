@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-04-21
+
+### Added
+
+- Tabs, file-tree items, and path-bar breadcrumbs now offer `Copy Path` context-menu actions for **name only**, **project-relative path**, and **fully qualified path** clipboard copies.
+- Folder browsing now tracks **recent folders** in Stuped itself, exposing them in a dedicated **Recent Folders** menu and in the folder-mode **Cmd+R** quick switcher alongside recent files. macOS-native recent documents continue to power file recents.
+
 ## [0.5.3] - 2026-04-21
 
 ### Fixed

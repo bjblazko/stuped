@@ -3,6 +3,7 @@ import SwiftUI
 struct DocumentPaneView: View {
     @Binding var text: String
     let fileURL: URL?
+    let projectRootURL: URL?
     @Binding var viewMode: DocumentViewMode
     let wordWrap: Bool
     let showMiniMap: Bool
@@ -28,7 +29,12 @@ struct DocumentPaneView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PathBarView(fileURL: fileURL, gitInfo: gitInfo, onNavigate: onNavigate) {
+            PathBarView(
+                fileURL: fileURL,
+                projectRootURL: projectRootURL,
+                gitInfo: gitInfo,
+                onNavigate: onNavigate
+            ) {
                 if isPreviewable && !isImageFile {
                     viewModePicker
                 }

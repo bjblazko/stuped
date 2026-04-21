@@ -3,25 +3,28 @@ import AppKit
 
 struct PathBarView<Trailing: View>: View {
     var fileURL: URL?
+    var projectRootURL: URL?
     var gitInfo: GitInfo?
     var onNavigate: ((URL) -> Void)?
     private let trailing: Trailing
 
     /// No trailing content.
-    init(fileURL: URL?, gitInfo: GitInfo?, onNavigate: ((URL) -> Void)? = nil)
+    init(fileURL: URL?, projectRootURL: URL? = nil, gitInfo: GitInfo?, onNavigate: ((URL) -> Void)? = nil)
         where Trailing == EmptyView
     {
         self.fileURL = fileURL
+        self.projectRootURL = projectRootURL
         self.gitInfo = gitInfo
         self.onNavigate = onNavigate
         self.trailing = EmptyView()
     }
 
     /// With trailing content (e.g. a view-mode picker).
-    init(fileURL: URL?, gitInfo: GitInfo?, onNavigate: ((URL) -> Void)? = nil,
+    init(fileURL: URL?, projectRootURL: URL? = nil, gitInfo: GitInfo?, onNavigate: ((URL) -> Void)? = nil,
          @ViewBuilder trailing: () -> Trailing)
     {
         self.fileURL = fileURL
+        self.projectRootURL = projectRootURL
         self.gitInfo = gitInfo
         self.onNavigate = onNavigate
         self.trailing = trailing()
@@ -91,8 +94,9 @@ struct PathBarView<Trailing: View>: View {
             }
 
             let isLast = index == components.count - 1
+            let targetURL = targetURL(componentIndex: index, fullURL: url)
             Button {
-                navigate(componentIndex: index, fullURL: url)
+                onNavigate?(targetURL)
             } label: {
                 HStack(spacing: 3) {
                     Image(systemName: isLast ? fileIcon(for: url) : "folder")
@@ -105,11 +109,7 @@ struct PathBarView<Trailing: View>: View {
             .buttonStyle(.plain)
             .id(isLast ? "last" : "c\(index)")
             .contextMenu {
-                Button("Copy Path") {
-                    let path = buildPath(componentIndex: index, fullURL: url)
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(path, forType: .string)
-                }
+                CopyPathMenu(url: targetURL, projectRootURL: projectRootURL)
             }
             .onHover { hovering in
                 if hovering {
@@ -142,9 +142,8 @@ struct PathBarView<Trailing: View>: View {
         return path
     }
 
-    private func navigate(componentIndex: Int, fullURL: URL) {
+    private func targetURL(componentIndex: Int, fullURL: URL) -> URL {
         let path = buildPath(componentIndex: componentIndex, fullURL: fullURL)
-        let targetURL = URL(fileURLWithPath: path)
-        onNavigate?(targetURL)
+        return URL(fileURLWithPath: path)
     }
 }

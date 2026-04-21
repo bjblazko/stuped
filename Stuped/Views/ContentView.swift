@@ -25,6 +25,8 @@ struct ContentView: View {
     private let onFileSelected: ((URL) -> Void)?
     /// Called after ContentView successfully saves a file, so the caller can clear the dirty flag.
     private let onFileSaved: ((URL) -> Void)?
+    /// The originally opened folder used as the base for relative path copy actions.
+    private let projectRootURL: URL?
 
     /// Single-file mode: opened via Finder / File > Open. Sidebar hidden by default.
     init(document: Binding<StupedDocument>, fileURL: URL?) {
@@ -34,6 +36,7 @@ struct ContentView: View {
         self.tabManager = nil
         self.onFileSelected = nil
         self.onFileSaved = nil
+        self.projectRootURL = nil
         self._columnVisibility = State(initialValue: .detailOnly)
     }
 
@@ -41,12 +44,14 @@ struct ContentView: View {
     /// sidebar clicks are routed through onFileSelected so FolderBrowserView can manage tabs.
     init(document: Binding<StupedDocument>, fileURL: URL?, folderMode: Bool,
          tabManager: TabManager? = nil,
+         projectRootURL: URL? = nil,
          onFileSelected: ((URL) -> Void)? = nil,
          onFileSaved: ((URL) -> Void)? = nil) {
         self._document = document
         self.fileURL = fileURL
         self.isFolderMode = folderMode
         self.tabManager = tabManager
+        self.projectRootURL = projectRootURL
         self.onFileSelected = onFileSelected
         self.onFileSaved = onFileSaved
         self._columnVisibility = State(initialValue: .all)
@@ -96,7 +101,7 @@ struct ContentView: View {
     private var detailContent: some View {
         VStack(spacing: 0) {
             if let tabManager, !tabManager.tabs.isEmpty {
-                TabBarView(tabManager: tabManager)
+                TabBarView(tabManager: tabManager, projectRootURL: projectRootURL)
             }
 
             if isFolderMode && activeFileURL == nil {
@@ -117,7 +122,8 @@ struct ContentView: View {
                 NavigationSplitView(columnVisibility: $columnVisibility) {
                     FileTreeSidebar(
                         model: treeModel,
-                        selectedFileURL: sidebarBinding
+                        selectedFileURL: sidebarBinding,
+                        projectRootURL: projectRootURL
                     )
                     .navigationSplitViewColumnWidth(min: 180, ideal: 240, max: 400)
                 } detail: {
@@ -207,6 +213,7 @@ struct ContentView: View {
                     DocumentPaneView(
                         text: binding(for: tab),
                         fileURL: tab.fileURL,
+                        projectRootURL: projectRootURL,
                         viewMode: viewModeBinding(for: tab),
                         wordWrap: wordWrap,
                         showMiniMap: showMiniMap,
@@ -223,6 +230,7 @@ struct ContentView: View {
             DocumentPaneView(
                 text: $document.text,
                 fileURL: fileURL,
+                projectRootURL: projectRootURL,
                 viewMode: $viewMode,
                 wordWrap: wordWrap,
                 showMiniMap: showMiniMap,
@@ -300,8 +308,8 @@ struct ContentView: View {
                 }
                 if isFolderMode {
                     Section("Navigate") {
-                        Button("Recent Files") {
-                            NotificationCenter.default.post(name: .stupedToggleRecentFiles, object: nil)
+                        Button("Recent Files & Folders") {
+                            NotificationCenter.default.post(name: .stupedToggleRecentItems, object: nil)
                         }
                         Button("Search Files...") {
                             NotificationCenter.default.post(name: .stupedToggleGlobalSearch, object: nil)

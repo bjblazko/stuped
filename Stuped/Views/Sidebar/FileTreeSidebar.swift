@@ -3,6 +3,7 @@ import SwiftUI
 struct FileTreeSidebar: View {
     @Bindable var model: FileTreeModel
     @Binding var selectedFileURL: URL?
+    let projectRootURL: URL?
 
     var body: some View {
         Group {
@@ -11,7 +12,8 @@ struct FileTreeSidebar: View {
                     FileTreeRows(
                         nodes: children,
                         model: model,
-                        selectedFileURL: $selectedFileURL
+                        selectedFileURL: $selectedFileURL,
+                        projectRootURL: projectRootURL
                     )
                 }
                 .listStyle(.sidebar)
@@ -27,6 +29,7 @@ private struct FileTreeRows: View {
     let nodes: [FileNode]
     @Bindable var model: FileTreeModel
     @Binding var selectedFileURL: URL?
+    let projectRootURL: URL?
 
     var body: some View {
         ForEach(nodes) { node in
@@ -43,7 +46,8 @@ private struct FileTreeRows: View {
                         FileTreeRows(
                             nodes: children,
                             model: model,
-                            selectedFileURL: $selectedFileURL
+                            selectedFileURL: $selectedFileURL,
+                            projectRootURL: projectRootURL
                         )
                     } else {
                         ProgressView().controlSize(.small).padding(.leading)
@@ -72,6 +76,10 @@ private struct FileTreeRows: View {
         } icon: {
             Image(systemName: node.iconName)
                 .foregroundStyle(node.iconColor)
+        }
+        .contentShape(Rectangle())
+        .contextMenu {
+            CopyPathMenu(url: node.url, projectRootURL: projectRootURL)
         }
     }
 }

@@ -4,11 +4,12 @@ import SwiftUI
 /// Owns the TabManager and routes file selection through it.
 struct FolderBrowserView: View {
     @State private var tabManager = TabManager()
+    @State private var recentFoldersStore = RecentFoldersStore.shared
     private var folderState = FolderBrowserState.shared
 
-    @State private var showRecentFiles = false
-    @State private var recentFilesInitialIndex = 0
-    @State private var recentFilesCycleTrigger = 0
+    @State private var showRecentItems = false
+    @State private var recentItemsInitialIndex = 0
+    @State private var recentItemsCycleTrigger = 0
 
 
     private var windowTitle: String {
@@ -44,11 +45,12 @@ struct FolderBrowserView: View {
                 fileURL: nil,
                 folderMode: true,
                 tabManager: tabManager,
+                projectRootURL: folderState.folderURL,
                 onFileSelected: handleFileSelected,
                 onFileSaved: handleFileSaved
             )
-            .onReceive(NotificationCenter.default.publisher(for: .stupedToggleRecentFiles)) { _ in
-                handleCmdE()
+            .onReceive(NotificationCenter.default.publisher(for: .stupedToggleRecentItems)) { _ in
+                handleRecentItemsCommand()
             }
             .onReceive(NotificationCenter.default.publisher(for: .stupedToggleGlobalSearch)) { _ in
                 // Prefer the currently displayed tree root; fall back to the project root.
@@ -62,19 +64,21 @@ struct FolderBrowserView: View {
                 }
             }
 
-            if showRecentFiles {
-                RecentFilesPopupView(
+            if showRecentItems {
+                RecentItemsPopupView(
                     tabManager: tabManager,
-                    isShowing: $showRecentFiles,
-                    initialSelectedIndex: recentFilesInitialIndex,
-                    cycleTrigger: recentFilesCycleTrigger,
-                    onSelect: handleFileSelected
+                    recentFoldersStore: recentFoldersStore,
+                    isShowing: $showRecentItems,
+                    initialSelectedIndex: recentItemsInitialIndex,
+                    cycleTrigger: recentItemsCycleTrigger,
+                    onSelectFile: handleFileSelected,
+                    onSelectFolder: handleFolderSelected
                 )
                 .transition(.opacity.combined(with: .scale(scale: 0.97)))
             }
 
         }
-        .animation(.easeOut(duration: 0.12), value: showRecentFiles)
+        .animation(.easeOut(duration: 0.12), value: showRecentItems)
         .navigationTitle(windowTitle)
         .onChange(of: folderState.folderURL) { _, newURL in
             GlobalSearchWindowManager.shared.close()
@@ -90,19 +94,23 @@ struct FolderBrowserView: View {
         }
     }
 
-    private func handleCmdE() {
-        if showRecentFiles {
-            recentFilesCycleTrigger += 1
+    private func handleRecentItemsCommand() {
+        if showRecentItems {
+            recentItemsCycleTrigger += 1
         } else {
-            recentFilesInitialIndex = tabManager.recentTabIDs.count > 1 ? 1 : 0
-            recentFilesCycleTrigger = 0
-            showRecentFiles = true
+            recentItemsInitialIndex = tabManager.recentTabIDs.count > 1 ? 1 : 0
+            recentItemsCycleTrigger = 0
+            showRecentItems = true
         }
     }
 
     private func handleFileSelected(_ url: URL) {
         tabManager.open(url: url)
         FolderBrowserState.shared.selectedFileURL = url
+    }
+
+    private func handleFolderSelected(_ url: URL) {
+        FolderBrowserState.shared.openFolder(url: url)
     }
 
     private func handleFileSaved(_ url: URL) {
@@ -120,7 +128,7 @@ struct FolderBrowserView: View {
 
 extension Notification.Name {
     static let stupedFolderOpened = Notification.Name("stupedFolderOpened")
-    static let stupedToggleRecentFiles = Notification.Name("stupedToggleRecentFiles")
+    static let stupedToggleRecentItems = Notification.Name("stupedToggleRecentItems")
     static let stupedToggleGlobalSearch = Notification.Name("stupedToggleGlobalSearch")
     static let stupedRevealInFileTree = Notification.Name("stupedRevealInFileTree")
     static let stupedSetViewMode = Notification.Name("stupedSetViewMode")

@@ -10,28 +10,29 @@ By [Hüpattl! Software](https://huepattl.de)
 
 ![Markdown with preview including Mermaid diagrams](./doc/screenshot-2-md-preview.png)
 
-![Show recently opened files/quick switch](./doc/screenshot-3-recent.png)
+![Show recently used files and folders/quick switch](./doc/screenshot-3-recent.png)
 
 ![Find files and find in files](./doc/screenshot-4-findinfiles.png)
 
 ![Light mode/theme](./doc/screenshot-5-light-theme.png)
 
 - **Code editing** with syntax highlighting (150+ languages via highlight.js), line numbers, and find bar
-- **In-window tabs** in folder mode — each opened file gets a tab; unsaved changes are preserved per tab
+- **In-window tabs** in folder mode — each opened file gets a tab; unsaved changes are preserved per tab; right-click a tab to copy its name, project-relative path, or full path
 - **Markdown preview** with GitHub-flavored rendering, code blocks, and Mermaid diagrams
 - **HTML preview** with live rendering in a WebView
 - **Image preview** for PNG, JPEG, GIF, BMP, TIFF, WebP, HEIC, and ICO files
 - **Split view** for side-by-side editing and preview, toggled via a floating icon overlay (Edit / Split / Preview)
 - **Live file reload** — when an external process modifies a file that is open in a tab, the editor updates immediately (unmodified tabs only; tabs with unsaved edits are left untouched)
-- **File tree sidebar** with color-coded file-type icons and real-time directory watching (kqueue)
+- **File tree sidebar** with color-coded file-type icons, real-time directory watching (kqueue), and right-click path-copy actions for files and folders
 - **Path bar** with clickable breadcrumb navigation and right-click to copy path
 - **Git integration** showing current branch and remote origin tooltip
 - **Status bar** with cursor position, line count, indentation, line endings, and encoding
 - **Dark/light mode** support throughout, including preview themes
 - **Folder browsing** mode for exploring project directories
+- **Recent files & folders** — macOS `File > Open Recent` keeps handling document history, while Stuped keeps its own recent-folder history in a dedicated menu and the folder-mode Cmd+R quick switcher
 - **Global file search** (Cmd+Shift+F) — a native resizable panel that searches all files in the open folder tree by filename, contents, or both simultaneously; an inline `ext:` field narrows results to a specific file extension; results and a line-level preview are shown in a draggable split view; navigate with ↑/↓, open with Enter, dismiss with Escape
 - **Reveal in File Tree** (Cmd+Shift+J) — expands and highlights the active file's node in the sidebar; useful after opening a file from search or recent files. Also accessible via right-click on any tab.
-- **View Options toolbar menu** — a single `slider.horizontal.3` toolbar button opens a dropdown with all view toggles (Word Wrap, Mini-Map, Show Dot Files) and navigation shortcuts (Reveal in File Tree, Recent Files, Search Files); active toggles show a checkmark
+- **View Options toolbar menu** — a single `slider.horizontal.3` toolbar button opens a dropdown with all view toggles (Word Wrap, Mini-Map, Show Dot Files) and navigation shortcuts (Reveal in File Tree, Recent Files & Folders, Search Files); active toggles show a checkmark
 - **Binary file detection** (null-byte scanning in first 8 KB)
 
 ## Installation
@@ -74,6 +75,7 @@ open Stuped.xcodeproj
 - **File > Open** (Cmd+O) to open a single file in its own window
 - **Double-click** a file in Finder to open it in Stuped
 - **Open Folder** (Cmd+Shift+O) to browse an entire directory
+- **File > Open Recent** to reopen files from macOS history, or **Recent Folders** to reopen folder workspaces from Stuped's own folder history
 
 ### View modes
 
@@ -90,7 +92,7 @@ Hover over each icon to see its tooltip. The overlay is hidden for plain source 
 | Shortcut | Action |
 |----------|--------|
 | Cmd+Shift+O | Open Folder |
-| Cmd+R | Recent Files popup |
+| Cmd+R | Recent Files & Folders popup |
 | Cmd+Shift+F | Open / close global file search panel |
 | Cmd+1 / 2 / 3 | Switch to Edit / Split / Preview mode (previewable files only) |
 | Cmd+Shift+J | Reveal active file in File Tree |
@@ -102,7 +104,19 @@ Hover over each icon to see its tooltip. The overlay is hidden for plain source 
 
 ### Path bar
 
-The path bar above the editor shows the full file path. Click any component to navigate the sidebar to that directory. Right-click any component to copy its path to the clipboard.
+The path bar above the editor shows the full file path. Click any component to navigate the sidebar to that directory. Right-click any component to open the same `Copy Path` submenu used in tabs and the file tree:
+
+- **Name Only**
+- **Relative to Project Root**
+- **Full Path**
+
+### Tabs and file tree
+
+In folder mode, right-click any tab or file-tree item to open a `Copy Path` submenu with:
+
+- **Name Only**
+- **Relative to Project Root**
+- **Full Path**
 
 ### Git
 

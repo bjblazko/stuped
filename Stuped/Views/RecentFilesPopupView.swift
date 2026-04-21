@@ -1,21 +1,29 @@
 import SwiftUI
 import AppKit
 
-private struct RecentFilesItem: Identifiable {
-    let url: URL
-    let isOpen: Bool
-    var id: URL { url }
+private enum RecentItemKind: String {
+    case openFile
+    case recentFile
+    case recentFolder
 }
 
-/// Floating command-palette popup for switching between open tabs and recently opened files.
+private struct RecentItem: Identifiable {
+    let url: URL
+    let kind: RecentItemKind
+    var id: String { "\(kind.rawValue)::\(url.path)" }
+}
+
+/// Floating command-palette popup for switching between open tabs and recently used files/folders.
 /// Triggered by Cmd+R in folder mode.
-struct RecentFilesPopupView: View {
+struct RecentItemsPopupView: View {
     let tabManager: TabManager
+    @Bindable var recentFoldersStore: RecentFoldersStore
     @Binding var isShowing: Bool
     /// Incremented by the parent each time Cmd+R is pressed while the popup is visible;
     /// causes the selection to advance by one row.
     let cycleTrigger: Int
-    let onSelect: (URL) -> Void
+    let onSelectFile: (URL) -> Void
+    let onSelectFolder: (URL) -> Void
 
     @State private var selectedIndex: Int
     @State private var searchText = ""
@@ -24,36 +32,47 @@ struct RecentFilesPopupView: View {
 
     init(
         tabManager: TabManager,
+        recentFoldersStore: RecentFoldersStore,
         isShowing: Binding<Bool>,
         initialSelectedIndex: Int,
         cycleTrigger: Int,
-        onSelect: @escaping (URL) -> Void
+        onSelectFile: @escaping (URL) -> Void,
+        onSelectFolder: @escaping (URL) -> Void
     ) {
         self.tabManager = tabManager
+        self.recentFoldersStore = recentFoldersStore
         self._isShowing = isShowing
         self.cycleTrigger = cycleTrigger
-        self.onSelect = onSelect
+        self.onSelectFile = onSelectFile
+        self.onSelectFolder = onSelectFolder
         self._selectedIndex = State(initialValue: initialSelectedIndex)
     }
 
     // MARK: - Data
 
-    private var filteredItems: [RecentFilesItem] {
+    private var filteredItems: [RecentItem] {
         let openURLs = Set(tabManager.tabs.map(\.fileURL))
 
         let openItems = tabManager.tabsByRecency
-            .map { RecentFilesItem(url: $0.fileURL, isOpen: true) }
+            .map { RecentItem(url: $0.fileURL, kind: .openFile) }
 
-        let recentItems = NSDocumentController.shared.recentDocumentURLs
+        let recentFileItems = NSDocumentController.shared.recentDocumentURLs
             .filter { !openURLs.contains($0) }
             .prefix(10)
-            .map { RecentFilesItem(url: $0, isOpen: false) }
+            .map { RecentItem(url: $0, kind: .recentFile) }
 
-        let all = openItems + recentItems
+        let recentFolderItems = recentFoldersStore.recentFolders
+            .prefix(10)
+            .map { RecentItem(url: $0, kind: .recentFolder) }
+
+        let all = openItems + recentFileItems + recentFolderItems
 
         guard !searchText.isEmpty else { return all }
         let lower = searchText.lowercased()
-        return all.filter { $0.url.lastPathComponent.lowercased().contains(lower) }
+        return all.filter { item in
+            item.url.lastPathComponent.lowercased().contains(lower)
+                || locationText(for: item).lowercased().contains(lower)
+        }
     }
 
     private var effectiveIndex: Int {
@@ -107,7 +126,7 @@ struct RecentFilesPopupView: View {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
                 .font(.system(size: 13))
-            TextField("Search open and recent files…", text: $searchText)
+            TextField("Search open and recent files/folders…", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .focused($searchFocused)
@@ -135,7 +154,7 @@ struct RecentFilesPopupView: View {
     @ViewBuilder
     private var fileList: some View {
         if filteredItems.isEmpty {
-            Text("No recent files")
+            Text("No recent files or folders")
                 .foregroundStyle(.secondary)
                 .font(.callout)
                 .frame(maxWidth: .infinity)
@@ -149,7 +168,7 @@ struct RecentFilesPopupView: View {
                                 .id(idx)
                                 .contentShape(Rectangle())
                                 .onTapGesture {
-                                    onSelect(item.url)
+                                    select(item)
                                     isShowing = false
                                 }
                         }
@@ -174,15 +193,41 @@ struct RecentFilesPopupView: View {
 
     private func confirmSelection() {
         guard !filteredItems.isEmpty else { return }
-        onSelect(filteredItems[effectiveIndex].url)
+        select(filteredItems[effectiveIndex])
         isShowing = false
+    }
+
+    private func select(_ item: RecentItem) {
+        switch item.kind {
+        case .recentFolder:
+            onSelectFolder(item.url)
+        case .openFile, .recentFile:
+            onSelectFile(item.url)
+        }
+    }
+
+    private func locationText(for item: RecentItem) -> String {
+        switch item.kind {
+        case .recentFolder:
+            return abbreviatedPath(item.url.path)
+        case .openFile, .recentFile:
+            return abbreviatedPath(item.url.deletingLastPathComponent().path)
+        }
+    }
+
+    private func abbreviatedPath(_ path: String) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if path.hasPrefix(home) {
+            return "~" + path.dropFirst(home.count)
+        }
+        return path
     }
 }
 
 // MARK: - Row view
 
 private struct FileRowView: View {
-    let item: RecentFilesItem
+    let item: RecentItem
     let isSelected: Bool
 
     var body: some View {
@@ -192,10 +237,10 @@ private struct FileRowView: View {
                 .frame(width: 18, height: 18)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(item.url.lastPathComponent)
+                Text(titleText)
                     .font(.system(size: 13))
                     .lineLimit(1)
-                Text(abbreviatedDirectory)
+                Text(locationText)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -203,13 +248,13 @@ private struct FileRowView: View {
 
             Spacer()
 
-            if item.isOpen {
-                Text("open")
+            if let badgeText {
+                Text(badgeText)
                     .font(.system(size: 10, weight: .medium))
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
-                    .background(Color.accentColor.opacity(0.15), in: Capsule())
-                    .foregroundStyle(Color.accentColor)
+                    .background(badgeBackground, in: Capsule())
+                    .foregroundStyle(badgeForeground)
             }
         }
         .padding(.horizontal, 12)
@@ -231,12 +276,56 @@ private struct FileRowView: View {
         return icon
     }
 
-    private var abbreviatedDirectory: String {
-        let dir = item.url.deletingLastPathComponent().path
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        if dir.hasPrefix(home) {
-            return "~" + dir.dropFirst(home.count)
+    private var titleText: String {
+        item.url.lastPathComponent
+    }
+
+    private var locationText: String {
+        let path: String
+        switch item.kind {
+        case .recentFolder:
+            path = item.url.path
+        case .openFile, .recentFile:
+            path = item.url.deletingLastPathComponent().path
         }
-        return dir
+
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if path.hasPrefix(home) {
+            return "~" + path.dropFirst(home.count)
+        }
+        return path
+    }
+
+    private var badgeText: String? {
+        switch item.kind {
+        case .openFile:
+            return "open"
+        case .recentFolder:
+            return "folder"
+        case .recentFile:
+            return nil
+        }
+    }
+
+    private var badgeBackground: Color {
+        switch item.kind {
+        case .openFile:
+            return Color.accentColor.opacity(0.15)
+        case .recentFolder:
+            return Color.secondary.opacity(0.14)
+        case .recentFile:
+            return .clear
+        }
+    }
+
+    private var badgeForeground: Color {
+        switch item.kind {
+        case .openFile:
+            return Color.accentColor
+        case .recentFolder:
+            return Color.secondary
+        case .recentFile:
+            return .clear
+        }
     }
 }

@@ -37,6 +37,7 @@ WindowGroup("Stuped — Folder", id: "folder-browser", for: String.self) { _ in
 - Reused as a single logical folder window by always opening the group with the same presentation value (`"main"`).
 - Uses SwiftUI's native macOS full-screen interaction so the green traffic-light button enters full screen.
 - `FolderBrowserView` owns a `TabManager` and passes an `activeDocumentBinding` to `ContentView` so save commands still route through the active tab's text, while each open tab keeps its own mounted `DocumentPaneView`.
+- Folder opens are recorded in `RecentFoldersStore`, which powers Stuped's own `Recent Folders` menu and the folder-mode Cmd+R recent-items popup; this is app-managed history, while file recents still come from `NSDocumentController`.
 
 ### 3. Window (About)
 
@@ -88,7 +89,7 @@ class AppDelegate: NSObject, NSApplicationDelegate
 
 1. User triggers Cmd+Shift+O.
 2. `StupedApp.openFolder()` shows `NSOpenPanel` for directory selection.
-3. On success: `FolderBrowserState.shared.openFolder(url:)` stores the URL.
+3. On success: `FolderBrowserState.shared.openFolder(url:)` normalizes the URL, records it in `RecentFoldersStore`, and stores it as the active folder root.
 4. `openWindow(id:value:)` opens or re-activates the folder-browser window using the fixed presentation value `"main"`.
 5. `FolderBrowserView` observes `folderState.folderURL` change.
 6. Posts `Notification.Name.stupedFolderOpened` with `["url": url]`.
@@ -106,6 +107,8 @@ class FolderBrowserState {
     var selectedFileURL: URL?   // drives the window title
 }
 ```
+
+`openFolder(url:)` also resets `treeRootURL`, clears the selected file, and updates the recent-folders history used by Stuped-owned folder recents UI.
 
 ## Tab Management in Folder Mode
 

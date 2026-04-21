@@ -11,6 +11,7 @@ A horizontal bar above the editor showing the full file path as clickable breadc
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `fileURL` | `URL?` | Path to display |
+| `projectRootURL` | `URL?` | Originally opened project root used for relative-path copy actions |
 | `gitInfo` | `GitInfo?` | Git branch and remote info |
 | `onNavigate` | `((URL) -> Void)?` | Callback when a path component is clicked |
 
@@ -63,9 +64,13 @@ A horizontal bar above the editor showing the full file path as clickable breadc
 
 ## Context Menu
 
-Each breadcrumb component has a right-click context menu with a **Copy Path** action. This copies the absolute path from root up to and including the clicked component to the system clipboard via `NSPasteboard.general`.
+Each breadcrumb component has a right-click context menu with the shared **Copy Path** submenu used by tabs and the file tree:
 
-The path is built by `buildPath(componentIndex:fullURL:)`, which is also used by the navigation callback.
+- **Name Only** — copies `lastPathComponent` for the clicked breadcrumb target
+- **Relative to Project Root** — copies the path relative to the originally opened project root when the target is inside that root
+- **Full Path** — copies the absolute path from root up to and including the clicked component
+
+The breadcrumb target path is built by `buildPath(componentIndex:fullURL:)`.
 
 ## Navigation Callback
 
