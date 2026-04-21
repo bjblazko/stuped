@@ -88,24 +88,22 @@ Updates are debounced at **300ms** via `DispatchWorkItem` on the main queue.
 1. SwiftUI calls `updateNSView` when `text` changes.
 2. Coordinator stores `pendingText` and calls `scheduleRender()`.
 3. After 300ms, `executeRender()` runs:
-   - Escapes text for JavaScript template literal.
+   - Base64-encodes the UTF-8 payload for safe transport into JavaScript.
    - Calls `renderMarkdown(...)` for Markdown or `updateContent(...)` for HTML via `WKWebView.evaluateJavaScript`.
 4. The `pageLoaded` flag ensures JavaScript is not called before the initial page finishes loading.
 5. Scroll-only SwiftUI updates do not trigger a preview re-render; the coordinator only schedules JavaScript updates when `text` actually changed.
 
 If the active file changes to a different parent directory or to a different preview type (`.markdown` vs `.html`), the coordinator performs a full page reload so the new base path and JavaScript wrapper are both refreshed.
 
-### JavaScript Escaping
+### Safe Content Transport
 
-`escapeForJS(_:)` escapes these characters for safe embedding in a JS template literal:
+Preview content is **not** injected directly into wrapper `<script>` tags anymore. Instead:
 
-| Character | Replacement |
-|-----------|-------------|
-| `\` | `\\` |
-| `` ` `` | `` \` `` |
-| `$` | `\$` |
-| `\n` | `\\n` |
-| `\r` | `\\r` |
+1. Swift base64-encodes the document's UTF-8 bytes.
+2. The wrapper page decodes the payload with `decodeBase64UTF8(...)`.
+3. The decoded text is passed to `renderMarkdown(...)` or `updateContent(...)`.
+
+This avoids HTML parser edge cases where literal source snippets such as `</script>` inside Markdown code fences or HTML examples would otherwise terminate the wrapper script early and break preview rendering.
 
 ## Resource Loading
 
@@ -116,6 +114,8 @@ If the active file changes to a different parent directory or to a different pre
 3. Returns empty string if not found.
 
 `dataURL(for:mimeType:)` base64-encodes bundled text resources that need to be referenced as script URLs without relying on bundle `file://` access from the web content process.
+
+`base64EncodedUTF8(_:)` prepares Markdown or HTML document text for safe transport into the wrapper page's JavaScript environment.
 
 ## Local Asset Resolution and Temp Storage
 

@@ -70,7 +70,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
     }
 
     private static func buildMarkdownHTML(_ markdown: String) -> String {
-        let escaped = escapeForJS(markdown)
+        let encoded = base64EncodedUTF8(markdown)
 
         let mdItJS = loadResource("markdown-it.min", ext: "js")
         let hljsJS = loadResource("highlight.min", ext: "js")
@@ -96,6 +96,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
             <script src="\(mermaidDataURL)"></script>
             <script>
                 \(scrollBridgeScript())
+                \(base64DecodeScript())
                 const md = markdownit({
                     html: true,
                     linkify: true,
@@ -156,7 +157,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
                     reportScrollPosition();
                 }
 
-                renderMarkdown(`\(escaped)`);
+                renderMarkdown(decodeBase64UTF8('\(encoded)'));
             </script>
         </body>
         </html>
@@ -164,7 +165,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
     }
 
     private static func buildRawHTML(_ html: String) -> String {
-        let escaped = escapeForJS(html)
+        let encoded = base64EncodedUTF8(html)
         return """
         <!DOCTYPE html>
         <html>
@@ -173,9 +174,10 @@ struct MarkdownPreviewView: NSViewRepresentable {
             <meta name="viewport" content="width=device-width, initial-scale=1">
         </head>
         <body>
-            <div id="content">\(html)</div>
+            <div id="content"></div>
             <script>
                 \(scrollBridgeScript())
+                \(base64DecodeScript())
                 function updateContent(newHTML) {
                     const scrollX = window.scrollX;
                     const scrollY = window.scrollY;
@@ -183,20 +185,15 @@ struct MarkdownPreviewView: NSViewRepresentable {
                     window.scrollTo(scrollX, scrollY);
                     reportScrollPosition();
                 }
-                // Store initial content for consistency with markdown path
-                updateContent(`\(escaped)`);
+                updateContent(decodeBase64UTF8('\(encoded)'));
             </script>
         </body>
         </html>
         """
     }
 
-    static func escapeForJS(_ text: String) -> String {
-        text.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "`", with: "\\`")
-            .replacingOccurrences(of: "$", with: "\\$")
-            .replacingOccurrences(of: "\n", with: "\\n")
-            .replacingOccurrences(of: "\r", with: "\\r")
+    private static func base64EncodedUTF8(_ text: String) -> String {
+        Data(text.utf8).base64EncodedString()
     }
 
     private static func dataURL(for text: String, mimeType: String) -> String {
@@ -223,6 +220,18 @@ struct MarkdownPreviewView: NSViewRepresentable {
             };
             window.addEventListener('scroll', window.queueScrollReport, { passive: true });
         })();
+        """
+    }
+
+    private static func base64DecodeScript() -> String {
+        """
+        function decodeBase64UTF8(base64) {
+            const binary = atob(base64);
+            const bytes = Uint8Array.from(binary, function(char) {
+                return char.charCodeAt(0);
+            });
+            return new TextDecoder().decode(bytes);
+        }
         """
     }
 
@@ -317,13 +326,13 @@ struct MarkdownPreviewView: NSViewRepresentable {
             guard let webView = webView, let text = pendingText, pageLoaded else { return }
             pendingText = nil
 
-            let escaped = MarkdownPreviewView.escapeForJS(text)
+            let encoded = MarkdownPreviewView.base64EncodedUTF8(text)
             let jsCall: String
             switch previewType {
             case .markdown:
-                jsCall = "renderMarkdown(`\(escaped)`)"
+                jsCall = "renderMarkdown(decodeBase64UTF8('\(encoded)'))"
             case .html:
-                jsCall = "updateContent(`\(escaped)`)"
+                jsCall = "updateContent(decodeBase64UTF8('\(encoded)'))"
             case .image:
                 return
             }

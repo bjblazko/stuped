@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-04-21
+
+### Fixed
+
+- Markdown and HTML preview now safely transport document text into the `WKWebView` wrapper so fenced or inline source examples containing literal `</script>` sequences no longer break rendering.
+
 ## [0.5.2] - 2026-04-20
 
 ### Fixed
