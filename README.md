@@ -25,6 +25,7 @@ By [Hüpattl! Software](https://huepattl.de)
 - **Split view** for side-by-side editing and preview, toggled via a floating icon overlay (Edit / Split / Preview)
 - **Live file reload** — when an external process modifies a file that is open in a tab, the editor updates immediately (unmodified tabs only; tabs with unsaved edits are left untouched)
 - **File tree sidebar** with color-coded file-type icons, real-time directory watching (kqueue), and right-click path-copy actions for files and folders
+- **Create from the file tree** — select a folder, then use **New File** or **New Folder** to insert an inline draft row in the correct sorted position; press **Return** to create or **Escape** to cancel
 - **Path bar** with clickable breadcrumb navigation and right-click to copy path
 - **Git integration** showing current branch and remote origin tooltip
 - **Status bar** with cursor position, line count, indentation, line endings, and encoding
@@ -122,6 +123,8 @@ In folder mode, right-click any tab to access `Reveal in File Tree` plus the sha
 - **Name Only**
 - **Relative to Project Root**
 - **Full Path**
+
+Select a folder in the sidebar to enable **New File** and **New Folder** in the folder-window menu, the View Options menu, and the file-tree context menu. The sidebar inserts a temporary inline row where the new item will sort; type the name, press **Return** to create it, or press **Escape** to remove the draft row. These create actions stay disabled when a file row is selected.
 
 ### Git
 

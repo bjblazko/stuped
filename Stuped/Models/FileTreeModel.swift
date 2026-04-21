@@ -2,12 +2,84 @@ import Foundation
 import Observation
 import CoreServices
 
+enum FileTreeCreationKind: String, Equatable {
+    case file
+    case folder
+
+    var menuTitle: String {
+        switch self {
+        case .file:
+            "New File"
+        case .folder:
+            "New Folder"
+        }
+    }
+
+    var systemImageName: String {
+        switch self {
+        case .file:
+            "doc.badge.plus"
+        case .folder:
+            "folder.badge.plus"
+        }
+    }
+
+    var placeholder: String {
+        switch self {
+        case .file:
+            "New File"
+        case .folder:
+            "New Folder"
+        }
+    }
+}
+
+struct PendingFileTreeCreation: Identifiable, Equatable {
+    let id = UUID()
+    let kind: FileTreeCreationKind
+    let parentURL: URL
+    var name = ""
+    var validationMessage: String?
+}
+
+struct FileTreeCreatedItem: Equatable {
+    let kind: FileTreeCreationKind
+    let url: URL
+}
+
+private enum FileTreeCreationError: LocalizedError {
+    case noDirectorySelected
+    case noPendingCreation
+    case emptyName
+    case reservedName
+    case invalidCharacters
+    case alreadyExists(String)
+    var errorDescription: String? {
+        switch self {
+        case .noDirectorySelected:
+            "Select a folder first."
+        case .noPendingCreation:
+            "There is no pending item to create."
+        case .emptyName:
+            "Enter a name first."
+        case .reservedName:
+            "'.' and '..' cannot be used as names."
+        case .invalidCharacters:
+            "Names cannot contain '/' or ':'."
+        case .alreadyExists(let name):
+            "'\(name)' already exists in this folder."
+        }
+    }
+}
+
 @Observable
 class FileTreeModel {
     var rootNode: FileNode?
     var rootURL: URL?
     var showHiddenFiles = false
     var expandedURLs: Set<URL> = []
+    var selectedItemURL: URL?
+    var pendingCreation: PendingFileTreeCreation?
     var revealTargetURL: URL?
     var revealRequestID = 0
 
@@ -21,6 +93,8 @@ class FileTreeModel {
     func loadDirectory(at url: URL) {
         self.rootURL = url
         self.expandedURLs = [url] // Start with root expanded
+        self.selectedItemURL = nil
+        self.pendingCreation = nil
         self.revealTargetURL = nil
         rebuildTree()
         startWatching(url: url)
@@ -71,6 +145,85 @@ class FileTreeModel {
         findNode(for: url)?.children
     }
 
+    var selectedItemIsDirectory: Bool {
+        guard let selectedItemURL else { return false }
+        return itemExistsAsDirectory(at: selectedItemURL)
+    }
+
+    var selectedDirectoryURL: URL? {
+        guard let selectedItemURL, selectedItemIsDirectory else { return nil }
+        return selectedItemURL
+    }
+
+    var canCreateInSelectedDirectory: Bool {
+        selectedDirectoryURL != nil
+    }
+
+    func selectItem(_ url: URL?) {
+        let normalizedURL = url?.standardizedFileURL
+        if selectedItemURL != normalizedURL,
+           pendingCreation?.parentURL != normalizedURL {
+            pendingCreation = nil
+        }
+        selectedItemURL = normalizedURL
+    }
+
+    func beginCreation(kind: FileTreeCreationKind) {
+        guard let parentURL = selectedDirectoryURL else { return }
+        expandedURLs.insert(parentURL)
+        pendingCreation = PendingFileTreeCreation(
+            kind: kind,
+            parentURL: parentURL
+        )
+        rebuildTree()
+    }
+
+    func updatePendingCreationName(_ name: String) {
+        guard pendingCreation != nil else { return }
+        pendingCreation?.name = name
+        pendingCreation?.validationMessage = nil
+    }
+
+    func cancelPendingCreation() {
+        pendingCreation = nil
+    }
+
+    func pendingCreation(forParent parentURL: URL) -> PendingFileTreeCreation? {
+        guard let pendingCreation,
+              pendingCreation.parentURL == parentURL.standardizedFileURL else { return nil }
+        return pendingCreation
+    }
+
+    func insertionIndex(for creation: PendingFileTreeCreation, among nodes: [FileNode]) -> Int {
+        let candidateName = comparableDraftName(for: creation)
+        return nodes.firstIndex { node in
+            comesBefore(
+                name: candidateName,
+                isDirectory: creation.kind == .folder,
+                otherName: node.name,
+                otherIsDirectory: node.isDirectory
+            )
+        } ?? nodes.count
+    }
+
+    @discardableResult
+    func commitPendingCreation() throws -> FileTreeCreatedItem {
+        guard let creation = pendingCreation else {
+            throw FileTreeCreationError.noPendingCreation
+        }
+
+        do {
+            let createdURL = try createItem(kind: creation.kind, in: creation.parentURL, named: creation.name)
+            pendingCreation = nil
+            selectItem(createdURL)
+            reveal(createdURL)
+            return FileTreeCreatedItem(kind: creation.kind, url: createdURL)
+        } catch {
+            pendingCreation?.validationMessage = error.localizedDescription
+            throw error
+        }
+    }
+
     func rebuildTree() {
         guard let url = rootURL else { return }
         rootNode = buildNode(at: url)
@@ -118,10 +271,7 @@ class FileTreeModel {
 
         // Sort: directories first, then alphabetical by name (case-insensitive)
         return nodes.sorted { a, b in
-            if a.isDirectory != b.isDirectory {
-                return a.isDirectory
-            }
-            return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+            comesBefore(name: a.name, isDirectory: a.isDirectory, otherName: b.name, otherIsDirectory: b.isDirectory)
         }
     }
 
@@ -142,6 +292,78 @@ class FileTreeModel {
             }
         }
         return nil
+    }
+
+    private func createItem(kind: FileTreeCreationKind, in parentURL: URL, named rawName: String) throws -> URL {
+        guard itemExistsAsDirectory(at: parentURL) else {
+            throw FileTreeCreationError.noDirectorySelected
+        }
+
+        let name = try validatedCreationName(rawName, in: parentURL)
+        let targetURL = parentURL
+            .appendingPathComponent(name, isDirectory: kind == .folder)
+            .standardizedFileURL
+
+        switch kind {
+        case .folder:
+            try FileManager.default.createDirectory(
+                at: targetURL,
+                withIntermediateDirectories: false,
+                attributes: nil
+            )
+        case .file:
+            do {
+                try Data().write(to: targetURL, options: [.withoutOverwriting])
+            } catch CocoaError.fileWriteFileExists {
+                throw FileTreeCreationError.alreadyExists(name)
+            } catch {
+                throw error
+            }
+        }
+
+        return targetURL
+    }
+
+    private func validatedCreationName(_ rawName: String, in parentURL: URL) throws -> String {
+        let trimmedName = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            throw FileTreeCreationError.emptyName
+        }
+        guard trimmedName != ".", trimmedName != ".." else {
+            throw FileTreeCreationError.reservedName
+        }
+        guard !trimmedName.contains("/"), !trimmedName.contains(":") else {
+            throw FileTreeCreationError.invalidCharacters
+        }
+
+        let existingURL = parentURL
+            .appendingPathComponent(trimmedName, isDirectory: false)
+            .standardizedFileURL
+        guard !FileManager.default.fileExists(atPath: existingURL.path) else {
+            throw FileTreeCreationError.alreadyExists(trimmedName)
+        }
+        return trimmedName
+    }
+
+    private func comparableDraftName(for creation: PendingFileTreeCreation) -> String {
+        let trimmedName = creation.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedName.isEmpty ? creation.kind.placeholder : trimmedName
+    }
+
+    private func comesBefore(
+        name: String,
+        isDirectory: Bool,
+        otherName: String,
+        otherIsDirectory: Bool
+    ) -> Bool {
+        if isDirectory != otherIsDirectory {
+            return isDirectory
+        }
+        return name.localizedCaseInsensitiveCompare(otherName) == .orderedAscending
+    }
+
+    private func itemExistsAsDirectory(at url: URL) -> Bool {
+        (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
     }
 
     // MARK: - File Watching

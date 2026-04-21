@@ -134,5 +134,7 @@ extension Notification.Name {
     static let stupedToggleRecentItems = Notification.Name("stupedToggleRecentItems")
     static let stupedToggleGlobalSearch = Notification.Name("stupedToggleGlobalSearch")
     static let stupedRevealInFileTree = Notification.Name("stupedRevealInFileTree")
+    static let stupedCreateNewFile = Notification.Name("stupedCreateNewFile")
+    static let stupedCreateNewFolder = Notification.Name("stupedCreateNewFolder")
     static let stupedSetViewMode = Notification.Name("stupedSetViewMode")
 }

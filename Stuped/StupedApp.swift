@@ -49,6 +49,7 @@ struct StupedApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @Environment(\.openWindow) private var openWindow
     @State private var recentFoldersStore = RecentFoldersStore.shared
+    @State private var folderBrowserState = FolderBrowserState.shared
     @AppStorage("editor.wordWrap") private var wordWrap: Bool = false
     @AppStorage("editor.showMiniMap") private var showMiniMap: Bool = true
     @AppStorage("fileTree.showHiddenFiles") private var showHiddenFiles: Bool = false
@@ -156,6 +157,18 @@ struct StupedApp: App {
         .defaultSize(width: 900, height: 600)
         .commands {
             CommandGroup(after: .sidebar) {
+                Button("New File") {
+                    NotificationCenter.default.post(name: .stupedCreateNewFile, object: nil)
+                }
+                .disabled(!folderBrowserState.canCreateInSelectedDirectory)
+
+                Button("New Folder") {
+                    NotificationCenter.default.post(name: .stupedCreateNewFolder, object: nil)
+                }
+                .disabled(!folderBrowserState.canCreateInSelectedDirectory)
+
+                Divider()
+
                 Button("Recent Files & Folders") {
                     NotificationCenter.default.post(name: .stupedToggleRecentItems, object: nil)
                 }
@@ -247,11 +260,22 @@ class FolderBrowserState {
     static let shared = FolderBrowserState()
     var folderURL: URL?
     var selectedFileURL: URL?
+    var selectedTreeItemURL: URL?
+    var selectedTreeItemIsDirectory = false
 
     /// The URL currently shown as the root of the sidebar tree.
     /// Updated by ContentView whenever treeModel.rootURL changes via breadcrumb navigation.
     /// Always use this (not folderURL) as the search scope.
     var treeRootURL: URL?
+
+    var canCreateInSelectedDirectory: Bool {
+        selectedTreeItemURL != nil && selectedTreeItemIsDirectory
+    }
+
+    func updateTreeSelection(url: URL?, isDirectory: Bool) {
+        selectedTreeItemURL = url?.standardizedFileURL
+        selectedTreeItemIsDirectory = isDirectory
+    }
 
     func openFolder(url: URL) {
         let normalizedURL = url.standardizedFileURL
@@ -259,5 +283,7 @@ class FolderBrowserState {
         self.folderURL = normalizedURL
         self.treeRootURL = normalizedURL   // reset to project root on fresh open
         self.selectedFileURL = nil
+        self.selectedTreeItemURL = nil
+        self.selectedTreeItemIsDirectory = false
     }
 }

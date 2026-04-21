@@ -123,7 +123,9 @@ struct ContentView: View {
                     FileTreeSidebar(
                         model: treeModel,
                         selectedFileURL: sidebarBinding,
-                        projectRootURL: projectRootURL
+                        projectRootURL: projectRootURL,
+                        onCreateItem: beginCreation,
+                        onCommitCreation: commitPendingCreation
                     )
                     .navigationSplitViewColumnWidth(min: 180, ideal: 240, max: 400)
                 } detail: {
@@ -146,6 +148,7 @@ struct ContentView: View {
         .frame(minWidth: 500, minHeight: 400)
         .onAppear {
             setupFileTree()
+            syncFolderBrowserTreeSelection()
             if !isFolderMode, isImageFile {
                 viewMode = .preview
             }
@@ -159,7 +162,11 @@ struct ContentView: View {
         .onChange(of: treeModel.rootURL) { _, newURL in
             if isFolderMode {
                 FolderBrowserState.shared.treeRootURL = newURL
+                syncFolderBrowserTreeSelection()
             }
+        }
+        .onChange(of: treeModel.selectedItemURL) { _, _ in
+            syncFolderBrowserTreeSelection()
         }
         .onChange(of: showHiddenFiles, initial: true) { _, newValue in
             treeModel.showHiddenFiles = newValue
@@ -167,6 +174,7 @@ struct ContentView: View {
         }
         .onChange(of: sidebarFileURL) { _, newURL in
             if isFolderMode {
+                treeModel.selectItem(newURL)
                 if let onFileSelected {
                     if let newURL {
                         onFileSelected(newURL)
@@ -186,6 +194,14 @@ struct ContentView: View {
             let url = (notification.userInfo?["url"] as? URL) ?? tabManager?.activeTab?.fileURL
             guard let url else { return }
             revealInFileTree(url)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stupedCreateNewFile)) { _ in
+            guard isFolderMode else { return }
+            beginCreation(.file)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .stupedCreateNewFolder)) { _ in
+            guard isFolderMode else { return }
+            beginCreation(.folder)
         }
         .onReceive(NotificationCenter.default.publisher(for: .stupedSetViewMode)) { notification in
             guard isPreviewable,
@@ -317,6 +333,14 @@ struct ContentView: View {
                         else { Text("Show Dot Files") }
                     }
                     if isFolderMode {
+                        Button("New File") {
+                            beginCreation(.file)
+                        }
+                        .disabled(!canCreateInSelectedDirectory)
+                        Button("New Folder") {
+                            beginCreation(.folder)
+                        }
+                        .disabled(!canCreateInSelectedDirectory)
                         Button("Reveal in File Tree") {
                             guard let url = tabManager?.activeTab?.fileURL else { return }
                             revealInFileTree(url)
@@ -347,6 +371,7 @@ struct ContentView: View {
         guard let fileURL else { return }
         let parentDirectory = fileURL.deletingLastPathComponent()
         treeModel.loadDirectory(at: parentDirectory)
+        treeModel.selectItem(fileURL)
         sidebarFileURL = fileURL
     }
 
@@ -440,6 +465,35 @@ struct ContentView: View {
         treeModel.reveal(url)
         sidebarFileURL = url
         columnVisibility = .all
+    }
+
+    private var canCreateInSelectedDirectory: Bool {
+        isFolderMode && treeModel.canCreateInSelectedDirectory
+    }
+
+    private func beginCreation(_ kind: FileTreeCreationKind) {
+        guard canCreateInSelectedDirectory else { return }
+        treeModel.beginCreation(kind: kind)
+        columnVisibility = .all
+    }
+
+    private func commitPendingCreation() {
+        do {
+            let createdItem = try treeModel.commitPendingCreation()
+            if createdItem.kind == .file {
+                sidebarFileURL = createdItem.url
+            }
+        } catch {
+            return
+        }
+    }
+
+    private func syncFolderBrowserTreeSelection() {
+        guard isFolderMode else { return }
+        FolderBrowserState.shared.updateTreeSelection(
+            url: treeModel.selectedItemURL,
+            isDirectory: treeModel.selectedItemIsDirectory
+        )
     }
 
     private func saveCurrentFile() {

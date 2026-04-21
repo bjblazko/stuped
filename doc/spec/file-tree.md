@@ -80,6 +80,8 @@ An `@Observable` class that builds and watches a directory tree.
 | `rootURL` | `URL?` | Root directory path |
 | `showHiddenFiles` | `Bool` | Include hidden files (default: `false`) |
 | `expandedURLs` | `Set<URL>` | Directory URLs currently expanded in the sidebar |
+| `selectedItemURL` | `URL?` | Currently selected file-tree item (file or folder) |
+| `pendingCreation` | `PendingFileTreeCreation?` | Inline draft item being named under the selected directory |
 
 ### Building the Tree
 
@@ -87,8 +89,17 @@ An `@Observable` class that builds and watches a directory tree.
 
 1. Stores the `rootURL`.
 2. Resets `expandedURLs` to contain the root folder so the first level stays visible.
-3. Calls `rebuildTree()` to build `rootNode` recursively.
-4. Calls `startWatching(url:)` to monitor changes.
+3. Clears the selected tree item and any pending inline create draft.
+4. Calls `rebuildTree()` to build `rootNode` recursively.
+5. Calls `startWatching(url:)` to monitor changes.
+
+Selection and creation state:
+
+- `selectItem(_:)` tracks the current sidebar selection independently from the active editor tab so folders can become explicit action targets.
+- `selectedDirectoryURL` / `canCreateInSelectedDirectory` only resolve to `true` when the current tree selection is a directory.
+- `beginCreation(kind:)` expands the selected directory and creates one `PendingFileTreeCreation` draft row under it.
+- `commitPendingCreation()` validates the name, creates either an empty file or a directory on disk, clears the draft, selects the new item, and issues a reveal request so the created row stays visible.
+- `cancelPendingCreation()` removes the inline draft row without touching the file system.
 
 `expandToURL(_ targetURL: URL)`:
 
@@ -145,11 +156,14 @@ A SwiftUI `List` with `.sidebar` style rendered via explicit `DisclosureGroup` e
 ### Behavior
 
 - Displays `rootNode.children` in a `.sidebar` `List` wrapped in `ScrollViewReader`, using a recursive private view `FileTreeRows`.
-- Each directory node is rendered as a `DisclosureGroup` whose `isExpanded` binding reads from and writes to `expandedURLs`. Clicking a folder expands/collapses it without entering the editor-tab flow. Programmatic reveal updates the set via `FileTreeModel.reveal(_:)`, which expands ancestors and issues a scroll request for the target file row.
-- Each file node is rendered as a tappable `Label`; tapping it updates `selectedFileURL`, which drives folder-mode tab opening in `ContentView`.
+- Each directory node is rendered as a `DisclosureGroup` whose `isExpanded` binding reads from and writes to `expandedURLs`. Clicking a folder expands/collapses it and also selects it as the current file-tree target. Programmatic reveal updates the set via `FileTreeModel.reveal(_:)`, which expands ancestors and issues a scroll request for the target file row.
+- Each file node is rendered as a tappable `Label`; tapping it updates both the tree selection and `selectedFileURL`, which drives folder-mode tab opening in `ContentView`.
 - Each label shows `Text(node.name)` and a tinted `Image(systemName: node.iconName).foregroundStyle(node.iconColor)`.
 - Each row uses its file URL as a stable identity so the sidebar can programmatically scroll to the revealed node and center it in view.
 - File and folder rows expose a `Copy Path` context submenu with `Name Only`, `Relative to Project Root`, and `Full Path` actions.
+- When the current tree selection is a folder, the same context menu also enables `New File` and `New Folder` actions.
+- Starting a create action inserts a transient inline `TextField` row under the selected directory at the same position the final item will occupy after sorting (directories first, then case-insensitive name order).
+- Pressing `Return` creates the item; pressing `Escape` cancels the draft row.
 - Relative paths are derived from the originally opened project root (`FolderBrowserState.folderURL`), not the currently narrowed tree root.
 - Shows `ContentUnavailableView` if no root node or empty children.
 
