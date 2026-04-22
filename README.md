@@ -24,10 +24,10 @@ By [Hüpattl! Software](https://huepattl.de)
 - **Image preview** for PNG, JPEG, GIF, BMP, TIFF, WebP, HEIC, and ICO files
 - **Split view** for side-by-side editing and preview, toggled via a floating icon overlay (Edit / Split / Preview)
 - **Live file reload** — when an external process modifies a file that is open in a tab, the editor updates immediately (unmodified tabs only; tabs with unsaved edits are left untouched)
-- **File tree sidebar** with color-coded file-type icons, real-time directory watching (kqueue), and right-click path-copy actions for files and folders
+- **File tree sidebar** with color-coded file-type icons, git-change badges for changed files, real-time directory watching (kqueue), and right-click path-copy actions for files and folders
 - **Create from the file tree** — select a folder, then use **New File** or **New Folder** to insert an inline draft row in the correct sorted position; press **Return** to create or **Escape** to cancel
 - **Path bar** with clickable breadcrumb navigation and right-click to copy path
-- **Git integration** showing current branch and remote origin tooltip
+- **Git integration** showing current branch, remote origin tooltip, working-tree change badges, and a dedicated changed-files window
 - **Status bar** with cursor position, line count, indentation, line endings, and encoding
 - **Dark/light mode** support throughout, including preview themes
 - **Folder browsing** mode for exploring project directories
@@ -130,6 +130,8 @@ Select a folder in the sidebar to enable **New File** and **New Folder** in the 
 
 If the current file is inside a git repository, the branch name appears at the right end of the path bar. Hover for a tooltip showing the remote origin URL.
 
+In **folder mode**, that branch badge is clickable and opens a native **Git Changes** window that groups repository changes into **New**, **Modified**, and **Deleted**. Selecting an available file from that window focuses the existing tab or opens a new one. The file tree also color-codes changed files and adds overlay icons for their change type. Ignored files are excluded from this first-pass status view.
+
 ## Documentation
 
 - [**Changelog**](CHANGELOG.md) -- version history (keep-a-changelog format)
@@ -143,7 +145,7 @@ If the current file is inside a git repository, the branch name appears at the r
   - [Preview Rendering](doc/spec/preview-rendering.md) -- Markdown/HTML/image, WKWebView, JS libraries
   - [File Tree](doc/spec/file-tree.md) -- FileNode, FileTreeModel, directory watching
   - [Path Bar](doc/spec/path-bar.md) -- breadcrumb navigation, click handling, copy path
-  - [Git Integration](doc/spec/git-integration.md) -- branch detection, remote URL
+  - [Git Integration](doc/spec/git-integration.md) -- branch metadata, working-tree status, Git Changes window
   - [Status Bar](doc/spec/status-bar.md) -- cursor, indentation, line-ending detection
   - [Language Map](doc/spec/language-map.md) -- extension-to-language mapping, preview types
 

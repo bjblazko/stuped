@@ -6,27 +6,32 @@ struct PathBarView<Trailing: View>: View {
     var projectRootURL: URL?
     var gitInfo: GitInfo?
     var onNavigate: ((URL) -> Void)?
+    var onShowGitChanges: (() -> Void)?
     private let trailing: Trailing
 
     /// No trailing content.
-    init(fileURL: URL?, projectRootURL: URL? = nil, gitInfo: GitInfo?, onNavigate: ((URL) -> Void)? = nil)
+    init(fileURL: URL?, projectRootURL: URL? = nil, gitInfo: GitInfo?, onNavigate: ((URL) -> Void)? = nil,
+         onShowGitChanges: (() -> Void)? = nil)
         where Trailing == EmptyView
     {
         self.fileURL = fileURL
         self.projectRootURL = projectRootURL
         self.gitInfo = gitInfo
         self.onNavigate = onNavigate
+        self.onShowGitChanges = onShowGitChanges
         self.trailing = EmptyView()
     }
 
     /// With trailing content (e.g. a view-mode picker).
     init(fileURL: URL?, projectRootURL: URL? = nil, gitInfo: GitInfo?, onNavigate: ((URL) -> Void)? = nil,
+         onShowGitChanges: (() -> Void)? = nil,
          @ViewBuilder trailing: () -> Trailing)
     {
         self.fileURL = fileURL
         self.projectRootURL = projectRootURL
         self.gitInfo = gitInfo
         self.onNavigate = onNavigate
+        self.onShowGitChanges = onShowGitChanges
         self.trailing = trailing()
     }
 
@@ -56,19 +61,23 @@ struct PathBarView<Trailing: View>: View {
 
             // Git branch badge
             if let branch = gitInfo?.branchName {
-                HStack(spacing: 4) {
-                    Divider().frame(height: 12)
-
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-
-                    Text(branch)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                if let onShowGitChanges {
+                    Button(action: onShowGitChanges) {
+                        branchBadge(branch)
+                    }
+                    .buttonStyle(.plain)
+                    .help(gitInfo?.remoteURL ?? "No remote configured")
+                    .onHover { hovering in
+                        if hovering {
+                            NSCursor.pointingHand.push()
+                        } else {
+                            NSCursor.pop()
+                        }
+                    }
+                } else {
+                    branchBadge(branch)
+                        .help(gitInfo?.remoteURL ?? "No remote configured")
                 }
-                .help(gitInfo?.remoteURL ?? "No remote configured")
             }
 
             // Trailing slot (e.g. view-mode picker)
@@ -79,6 +88,22 @@ struct PathBarView<Trailing: View>: View {
         .background(.bar)
         .overlay(alignment: .bottom) {
             Divider()
+        }
+    }
+
+    @ViewBuilder
+    private func branchBadge(_ branch: String) -> some View {
+        HStack(spacing: 4) {
+            Divider().frame(height: 12)
+
+            Image(systemName: "arrow.triangle.branch")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+
+            Text(branch)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
     }
 

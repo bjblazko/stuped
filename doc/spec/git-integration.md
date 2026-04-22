@@ -1,47 +1,34 @@
 # Specification: Git Integration
 
-## File: `Stuped/Models/GitInfo.swift`
+## Files
+
+- `Stuped/Models/GitCLI.swift`
+- `Stuped/Models/GitInfo.swift`
+- `Stuped/Models/GitWorkingTreeStatus.swift`
+- `Stuped/Views/PathBarView.swift`
+- `Stuped/Views/GitChangesWindowManager.swift`
+- `Stuped/Views/GitChangesPopupView.swift`
 
 ## Overview
 
-`GitInfo` is a plain struct that asynchronously fetches git repository metadata by shelling out to `/usr/bin/git` via `Foundation.Process`.
+Git integration has two layers:
 
-## Properties
+1. **Repository metadata** for the path bar (`GitInfo`) — branch name, remote URL, repo root.
+2. **Working-tree status** for folder mode (`GitWorkingTreeStatus`) — repo-scoped lists of new, modified, and deleted files used by the file tree and the Git Changes window.
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `branchName` | `String` | Current branch name or short SHA |
-| `remoteURL` | `String?` | `remote.origin.url` if configured |
-| `repoRoot` | `URL` | Absolute path to repository root |
+Both layers shell out to `/usr/bin/git` via `Foundation.Process`.
 
-## Fetching
+## GitCLI
 
-`static func fetch(for fileURL: URL) async -> GitInfo?`
+`GitCLI` centralizes git process execution and path resolution helpers.
 
-### Steps
+### Responsibilities
 
-1. Determine the working directory:
-   - If `fileURL` is a directory, use it directly.
-   - If it's a file, use `deletingLastPathComponent()`.
+- Resolve a working directory from a file or directory URL.
+- Resolve the enclosing repository root using `git rev-parse --show-toplevel`.
+- Run arbitrary git commands and return either raw stdout or trimmed stdout.
 
-2. Run `git rev-parse --show-toplevel`:
-   - If this fails (exit status != 0), return `nil` (not a git repo).
-   - Otherwise, store the result as `repoRoot`.
-
-3. Run `git branch --show-current`:
-   - If the result is non-empty, use it as `branchName`.
-   - If empty (detached HEAD), fall back to step 4.
-
-4. Run `git rev-parse --short HEAD`:
-   - Use the short SHA as `branchName`.
-   - If this also fails, use the literal string `"HEAD"`.
-
-5. Run `git config --get remote.origin.url`:
-   - Store as `remoteURL` (may be `nil` if no remote is configured).
-
-### Process Execution
-
-`private static func run(_ arguments: String..., in directory: URL) -> String?`
+### Process execution
 
 | Setting | Value |
 |---------|-------|
@@ -51,29 +38,99 @@
 | stdout | Captured via `Pipe` |
 | stderr | Redirected to `FileHandle.nullDevice` |
 
-Returns trimmed stdout if exit status is 0, otherwise `nil`.
+`run(_:)` returns raw stdout, while `runTrimmed(_:)` trims surrounding whitespace and newlines for metadata lookups such as branch names.
 
-## Integration Points
+## GitInfo
+
+`GitInfo` remains the lightweight metadata view used by each `DocumentPaneView`.
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `branchName` | `String` | Current branch name or short SHA |
+| `remoteURL` | `String?` | `remote.origin.url` if configured |
+| `repoRoot` | `URL` | Absolute repository root |
+
+### Fetch flow
+
+`static func fetch(for fileURL: URL) async -> GitInfo?`
+
+1. Resolve a git working directory via `GitCLI.workingDirectory(for:)`.
+2. Resolve the repository root via `GitCLI.repositoryRoot(for:)`; return `nil` when outside git.
+3. Read `git branch --show-current`; if detached, fall back to `git rev-parse --short HEAD`.
+4. Read `git config --get remote.origin.url`.
+
+## GitWorkingTreeStatus
+
+`GitWorkingTreeStatus` fetches the folder-mode working tree snapshot used by both status-driven UI surfaces.
+
+### Status scope
+
+- Based on `git status --porcelain=v1 --untracked-files=all`
+- Includes **untracked/new**, **modified**, and **deleted**
+- Excludes ignored files
+- Collapses rarer raw git states (`R`, `C`, `T`, `U`) into the UI group **Modified**
+
+### Models
+
+| Type | Purpose |
+|------|---------|
+| `GitWorkingTreeChangeKind` | UI grouping and decoration metadata for `new`, `modified`, `deleted` |
+| `GitChangedFile` | Repo-relative file entry with resolved URL and availability check |
+| `GitWorkingTreeStatusSnapshot` | Immutable snapshot for one repo, with grouped lookups and URL-based status lookup |
+
+### Parsing
+
+`GitWorkingTreeStatus.fetch(for:)`:
+
+1. Resolves the repository root via `GitCLI.repositoryRoot(for:)`.
+2. Runs `git -c core.quotepath=false status --porcelain=v1 --untracked-files=all`.
+3. Parses each status line into a normalized repo-relative path.
+4. Classifies the line into `new`, `modified`, or `deleted`.
+5. Builds a `GitWorkingTreeStatusSnapshot` keyed by standardized file URLs.
+
+Deleted files remain in the snapshot even though they no longer exist on disk.
+
+## Integration points
+
+### DocumentPaneView + PathBarView
+
+- `DocumentPaneView` still fetches `GitInfo` per active file for branch display.
+- `PathBarView` shows the branch badge and tooltip in all modes.
+- In **folder mode**, `PathBarView` also receives `onShowGitChanges`, making the branch badge clickable.
 
 ### ContentView
 
-- `@State private var gitInfo: GitInfo?`
-- `refreshGitInfo()` launches a `Task` calling `GitInfo.fetch(for:)`, updates `gitInfo` on `MainActor`.
-- Called in:
-  - `.onAppear` (initial load)
-  - `.onChange(of: sidebarFileURL)` (file switch)
+Folder mode owns the current `gitStatusSnapshot`.
 
-### PathBarView
+Refresh triggers:
 
-- Displays `gitInfo.branchName` at the right end of the path bar.
-- Shows `gitInfo.remoteURL` as a hover tooltip.
+- `.onAppear`
+- `.stupedFolderOpened`
+- active file / sidebar selection changes
+- tree-root changes
+- `FileTreeModel.filesystemChangeCount` updates from FSEvents
+- `NSApplication.didBecomeActiveNotification` to catch index-only git operations such as `git add`
 
-## Error Handling
+### FileTreeSidebar
 
-- If `git` is not installed: `Process.run()` throws, caught and returns `nil`.
-- If not in a git repo: `rev-parse --show-toplevel` returns non-zero, `fetch` returns `nil`.
-- If no remote: `remoteURL` is `nil`, tooltip shows "No remote configured".
+- Calls `gitStatusSnapshot.changeKind(for: node.url)` for file rows.
+- Uses that change kind for text tinting and overlay icon badges.
+- Does **not** synthesize missing deleted rows into the tree; deleted files instead appear in the Git Changes window.
+
+### Git Changes window
+
+- `GitChangesWindowManager` hosts a singleton native `NSPanel`.
+- `GitChangesPopupView` groups entries by **New**, **Modified**, and **Deleted**.
+- Selecting an available file routes back into folder-mode tab opening (`TabManager.open(url:)` via existing callbacks).
+
+## Error handling
+
+- If `git` is unavailable or the path is outside a repository, git lookups return `nil`.
+- If the working tree is clean, the snapshot is still valid but contains `changes == []`.
+- Deleted or otherwise unavailable entries remain visible in the Git Changes window and are not opened.
 
 ## Threading
 
-`fetch(for:)` is `async` but not `@MainActor`. The blocking `Process.waitUntilExit()` calls run on the Swift concurrency cooperative thread pool, not the main thread. Results are dispatched to `MainActor` by the caller.
+Both `GitInfo.fetch(for:)` and `GitWorkingTreeStatus.fetch(for:)` are `async` wrappers around blocking subprocess calls. Callers launch them in `Task`s and publish results back on `MainActor`.

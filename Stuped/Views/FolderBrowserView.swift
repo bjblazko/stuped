@@ -85,6 +85,7 @@ struct FolderBrowserView: View {
         .navigationTitle(windowTitle)
         .onChange(of: folderState.folderURL) { _, newURL in
             GlobalSearchWindowManager.shared.close()
+            GitChangesWindowManager.shared.close()
             if let url = newURL {
                 tabManager.clearAll()
                 loadFolder(url: url)

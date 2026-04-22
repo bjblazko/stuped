@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
@@ -7,6 +8,8 @@ struct ContentView: View {
     @State private var viewMode: DocumentViewMode = .edit
     @State private var treeModel = FileTreeModel()
     @State private var sidebarFileURL: URL?
+    @State private var gitStatusSnapshot: GitWorkingTreeStatusSnapshot?
+    @State private var gitStatusRefreshTask: Task<Void, Never>?
     @State private var columnVisibility: NavigationSplitViewVisibility
     @AppStorage("editor.wordWrap") private var wordWrap: Bool = false
     @AppStorage("editor.showMiniMap") private var showMiniMap: Bool = true
@@ -124,6 +127,7 @@ struct ContentView: View {
                         model: treeModel,
                         selectedFileURL: sidebarBinding,
                         projectRootURL: projectRootURL,
+                        gitStatusSnapshot: gitStatusSnapshot,
                         onCreateItem: beginCreation,
                         onCommitCreation: commitPendingCreation
                     )
@@ -149,24 +153,40 @@ struct ContentView: View {
         .onAppear {
             setupFileTree()
             syncFolderBrowserTreeSelection()
+            if isFolderMode {
+                refreshGitWorkingTreeStatus()
+            }
             if !isFolderMode, isImageFile {
                 viewMode = .preview
+            }
+        }
+        .onDisappear {
+            gitStatusRefreshTask?.cancel()
+            if isFolderMode {
+                GitChangesWindowManager.shared.close()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .stupedFolderOpened)) { notification in
             if isFolderMode, let url = notification.userInfo?["url"] as? URL {
                 treeModel.loadDirectory(at: url)
                 sidebarFileURL = nil
+                refreshGitWorkingTreeStatus(using: url)
             }
         }
         .onChange(of: treeModel.rootURL) { _, newURL in
             if isFolderMode {
                 FolderBrowserState.shared.treeRootURL = newURL
                 syncFolderBrowserTreeSelection()
+                refreshGitWorkingTreeStatus(using: newURL)
             }
         }
         .onChange(of: treeModel.selectedItemURL) { _, _ in
             syncFolderBrowserTreeSelection()
+        }
+        .onChange(of: treeModel.filesystemChangeCount) { _, _ in
+            if isFolderMode {
+                refreshGitWorkingTreeStatus()
+            }
         }
         .onChange(of: showHiddenFiles, initial: true) { _, newValue in
             treeModel.showHiddenFiles = newValue
@@ -183,11 +203,17 @@ struct ContentView: View {
                     loadFileFromSidebar(url: newURL)
                 }
                 FolderBrowserState.shared.selectedFileURL = newURL
+                refreshGitWorkingTreeStatus(using: newURL)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .stupedTabSwitched)) { notification in
             guard isFolderMode else { return }
             sidebarFileURL = notification.userInfo?["url"] as? URL
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            if isFolderMode {
+                refreshGitWorkingTreeStatus()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .stupedRevealInFileTree)) { notification in
             guard isFolderMode else { return }
@@ -232,7 +258,8 @@ struct ContentView: View {
                         wordWrap: wordWrap,
                         showMiniMap: showMiniMap,
                         isActive: isActive,
-                        onNavigate: navigateToPath
+                        onNavigate: navigateToPath,
+                        onShowGitChanges: isFolderMode ? showGitChangesPanel : nil
                     )
                     .opacity(isActive ? 1 : 0)
                     .allowsHitTesting(isActive)
@@ -249,7 +276,8 @@ struct ContentView: View {
                 wordWrap: wordWrap,
                 showMiniMap: showMiniMap,
                 isActive: true,
-                onNavigate: navigateToPath
+                onNavigate: navigateToPath,
+                onShowGitChanges: nil
             )
         }
     }
@@ -465,6 +493,57 @@ struct ContentView: View {
         treeModel.reveal(url)
         sidebarFileURL = url
         columnVisibility = .all
+    }
+
+    private var gitStatusContextURL: URL? {
+        sidebarFileURL ?? treeModel.rootURL ?? projectRootURL
+    }
+
+    private func refreshGitWorkingTreeStatus(using explicitURL: URL? = nil) {
+        guard isFolderMode else { return }
+
+        let targetURL = explicitURL ?? gitStatusContextURL
+        gitStatusRefreshTask?.cancel()
+
+        guard let targetURL else {
+            gitStatusSnapshot = nil
+            return
+        }
+
+        gitStatusRefreshTask = Task {
+            let snapshot = await GitWorkingTreeStatus.fetch(for: targetURL)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                gitStatusSnapshot = snapshot
+            }
+        }
+    }
+
+    private func showGitChangesPanel() {
+        guard isFolderMode, let targetURL = gitStatusContextURL else { return }
+
+        Task {
+            let snapshot = await GitWorkingTreeStatus.fetch(for: targetURL)
+            await MainActor.run {
+                gitStatusSnapshot = snapshot
+                guard let snapshot else { return }
+                GitChangesWindowManager.shared.open(snapshot: snapshot) { change in
+                    handleGitChangeSelection(change)
+                }
+            }
+        }
+    }
+
+    private func handleGitChangeSelection(_ change: GitChangedFile) {
+        guard change.existsOnDisk else { return }
+
+        if let onFileSelected {
+            onFileSelected(change.url)
+        } else {
+            sidebarFileURL = change.url
+            loadFileFromSidebar(url: change.url)
+        }
     }
 
     private var canCreateInSelectedDirectory: Bool {

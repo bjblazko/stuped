@@ -15,6 +15,7 @@ Stuped is a native macOS code editor and file browser providing:
 - Word wrap toggle (hard line breaks vs. unbounded horizontal scroll)
 - Recent-files command palette (Cmd+R) seeded by the current session's file history, then macOS file history and recent folders
 - Git branch and remote origin display
+- Git working-tree change discovery in folder mode via file-tree decorations and a branch-click changes window
 - Path bar with clickable breadcrumb navigation
 - "Reveal in File Tree" (Cmd+Shift+J) to expand, scroll to, and highlight the active file in the sidebar
 - View Options toolbar menu consolidating all view toggles and navigation shortcuts
@@ -60,7 +61,7 @@ Stuped is a native macOS code editor and file browser providing:
 graph LR
     User["User (dev)"] -->|opens / edits| Stuped
     Stuped --> FS["File System\n(read/write)"]
-    Stuped --> Git["/usr/bin/git\n(branch info)"]
+    Stuped --> Git["/usr/bin/git\n(branch + status info)"]
     Stuped --> WK["WKWebView\n(preview)"]
 ```
 
@@ -69,7 +70,7 @@ graph LR
 | External System | Interface | Purpose |
 |-----------------|-----------|---------|
 | macOS File System | `FileManager`, `open()` | Read/write files, directory listing, kqueue watching |
-| `/usr/bin/git` | `Foundation.Process` | Branch name, remote URL, repo root detection |
+| `/usr/bin/git` | `Foundation.Process` | Branch name, remote URL, repo root detection, working-tree status |
 | WebKit (in-process) | `WKWebView`, `evaluateJavaScript`, `WKURLSchemeHandler` | Markdown/HTML rendering and scoped local-asset loading from preview temp staging |
 | highlight.js (JavaScriptCore) | `Highlighter` (HighlighterSwift) | Editor syntax highlighting |
 
@@ -81,7 +82,7 @@ graph LR
 | Rich preview | WKWebView with bundled markdown-it + mermaid.js, staging generated preview HTML under the user's temp directory and serving relative assets through a custom URL scheme |
 | Responsiveness | Debounced highlighting (150ms) and preview (300ms) |
 | File awareness | kqueue-based directory watching via DispatchSource |
-| Git context | Shell out to git CLI asynchronously |
+| Git context | Shell out to git CLI asynchronously for branch metadata and working-tree status snapshots |
 | Minimal footprint | One external Swift dependency; JS libs bundled as resources |
 
 ## 5. Building Block View
@@ -114,6 +115,7 @@ graph TD
             viewMode["viewMode: ViewMode"]
             treeModel["treeModel: FileTreeModel"]
             sidebarFileURL["sidebarFileURL: URL?"]
+            gitStatus["gitStatusSnapshot: GitWorkingTreeStatusSnapshot?"]
         end
         subgraph Binding
             document["document: StupedDocument"]
@@ -129,7 +131,7 @@ graph TD
     NSV --> Sidebar["FileTreeSidebar\n(rootNode, selectedFileURL, expandedURLs)"]
     NSV --> Detail["Detail ZStack"]
     Detail --> Pane["DocumentPaneView\n(one per open tab)"]
-    Pane --> PBV["PathBarView\n(fileURL, gitInfo, onNavigate)"]
+    Pane --> PBV["PathBarView\n(fileURL, gitInfo, onNavigate, onShowGitChanges)"]
     Pane --> EditorArea["editorArea"]
     Pane --> SBV["StatusBarView\n(editorState, language)"]
 

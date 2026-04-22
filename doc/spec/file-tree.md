@@ -82,6 +82,7 @@ An `@Observable` class that builds and watches a directory tree.
 | `expandedURLs` | `Set<URL>` | Directory URLs currently expanded in the sidebar |
 | `selectedItemURL` | `URL?` | Currently selected file-tree item (file or folder) |
 | `pendingCreation` | `PendingFileTreeCreation?` | Inline draft item being named under the selected directory |
+| `filesystemChangeCount` | `Int` | Monotonic counter incremented when a relevant FSEvents update reaches the model |
 
 ### Building the Tree
 
@@ -128,7 +129,7 @@ Uses `FSEventStream` (CoreServices) for recursive directory watching (ADR-0015):
 
 1. `FSEventStreamCreate` is called with the root URL path, a 300 ms latency, and `kFSEventStreamCreateFlagUseCFTypes`.
 2. The stream is scheduled on `DispatchQueue.main` via `FSEventStreamSetDispatchQueue`.
-3. On any event (file/directory created, renamed, deleted, modified anywhere in the tree): calls `rebuildTree()`.
+3. On any event (file/directory created, renamed, deleted, modified anywhere in the tree): increments `filesystemChangeCount` and calls `rebuildTree()`.
 4. `stopWatching()` stops, invalidates, and releases the stream; called in `deinit` and before starting a new watch.
 
 The 300 ms latency coalesces rapid bursts (e.g., `git checkout` touching many files) into a single `rebuildTree()` call.
@@ -152,6 +153,7 @@ A SwiftUI `List` with `.sidebar` style rendered via explicit `DisclosureGroup` e
 | `selectedFileURL` | `Binding<URL?>` | Currently selected file |
 | `expandedURLs` | `Binding<Set<URL>>` | Directories currently expanded |
 | `projectRootURL` | `URL?` | Originally opened project root used for relative-path copy actions |
+| `gitStatusSnapshot` | `GitWorkingTreeStatusSnapshot?` | Current folder-mode git working-tree snapshot used to decorate file rows |
 
 ### Behavior
 
@@ -159,12 +161,17 @@ A SwiftUI `List` with `.sidebar` style rendered via explicit `DisclosureGroup` e
 - Each directory node is rendered as a `DisclosureGroup` whose `isExpanded` binding reads from and writes to `expandedURLs`. Clicking a folder expands/collapses it and also selects it as the current file-tree target. Programmatic reveal updates the set via `FileTreeModel.reveal(_:)`, which expands ancestors and issues a scroll request for the target file row.
 - Each file node is rendered as a tappable `Label`; tapping it updates both the tree selection and `selectedFileURL`, which drives folder-mode tab opening in `ContentView`.
 - Each label shows `Text(node.name)` and a tinted `Image(systemName: node.iconName).foregroundStyle(node.iconColor)`.
+- When `gitStatusSnapshot` has a change entry for a file row, the filename text is tinted by change type and the icon gains a small overlay badge:
+  - **New** — green `plus.circle.fill`
+  - **Modified** — orange `pencil.circle.fill`
+  - **Deleted** — red `minus.circle.fill`
 - Each row uses its file URL as a stable identity so the sidebar can programmatically scroll to the revealed node and center it in view.
 - File and folder rows expose a `Copy Path` context submenu with `Name Only`, `Relative to Project Root`, and `Full Path` actions.
 - When the current tree selection is a folder, the same context menu also enables `New File` and `New Folder` actions.
 - Starting a create action inserts a transient inline `TextField` row under the selected directory at the same position the final item will occupy after sorting (directories first, then case-insensitive name order).
 - Pressing `Return` creates the item; pressing `Escape` cancels the draft row.
 - Relative paths are derived from the originally opened project root (`FolderBrowserState.folderURL`), not the currently narrowed tree root.
+- Fully deleted tracked files are **not** synthesized into the sidebar tree once they disappear from disk; they remain visible in the dedicated Git Changes window instead.
 - Shows `ContentUnavailableView` if no root node or empty children.
 
 > **ADR-0014**: The sidebar switched from `List(_:children:selection:)` (auto-managed expansion) to explicit `DisclosureGroup` to support programmatic expansion for the "Reveal in File Tree" feature.

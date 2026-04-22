@@ -4,7 +4,7 @@
 
 ## Overview
 
-A horizontal bar above the editor showing the full file path as clickable breadcrumb components, plus the git branch name. In folder mode, Finder-style Back / Forward controls live in the native window toolbar, while the path bar itself remains focused on breadcrumb navigation and git context.
+A horizontal bar above the editor showing the full file path as clickable breadcrumb components, plus the git branch name. In folder mode, Finder-style Back / Forward controls live in the native window toolbar, while the path bar exposes breadcrumb navigation and the entry point to the Git Changes window.
 
 ## Parameters
 
@@ -14,6 +14,7 @@ A horizontal bar above the editor showing the full file path as clickable breadc
 | `projectRootURL` | `URL?` | Originally opened project root used for relative-path copy actions |
 | `gitInfo` | `GitInfo?` | Git branch and remote info |
 | `onNavigate` | `((URL) -> Void)?` | Callback when a path component is clicked |
+| `onShowGitChanges` | `(() -> Void)?` | Optional folder-mode callback that makes the branch badge clickable |
 
 ## Layout
 
@@ -43,12 +44,13 @@ flowchart LR
 - Icon: `arrow.triangle.branch` (10pt, secondary).
 - Text: branch name (11pt, secondary, single line).
 - Tooltip (`.help`): `gitInfo?.remoteURL ?? "No remote configured"`.
+- In folder mode, when `onShowGitChanges` is present, the badge becomes a plain button with pointing-hand hover that opens the Git Changes panel.
 
 ## Relationship to folder-mode history controls
 
 - Folder mode adds Finder-style Back / Forward buttons in `ContentView.toolbarContent` using `ToolbarItemGroup(placement: .navigation)`.
 - Those buttons operate on `TabManager`'s linear per-session file history and can switch to an already-open tab or reopen a file whose tab was closed.
-- The path bar does not own that history state; it continues to expose only breadcrumb navigation through `onNavigate`.
+- The path bar does not own that history state; it continues to expose breadcrumb navigation through `onNavigate` plus the optional branch-badge callback for Git Changes.
 
 ## Styling
 

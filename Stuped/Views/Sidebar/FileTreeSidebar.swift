@@ -5,6 +5,7 @@ struct FileTreeSidebar: View {
     @Bindable var model: FileTreeModel
     @Binding var selectedFileURL: URL?
     let projectRootURL: URL?
+    let gitStatusSnapshot: GitWorkingTreeStatusSnapshot?
     let onCreateItem: (FileTreeCreationKind) -> Void
     let onCommitCreation: () -> Void
 
@@ -18,6 +19,7 @@ struct FileTreeSidebar: View {
                             model: model,
                             selectedFileURL: $selectedFileURL,
                             projectRootURL: projectRootURL,
+                            gitStatusSnapshot: gitStatusSnapshot,
                             onCreateItem: onCreateItem,
                             onCommitCreation: onCommitCreation
                         )
@@ -49,6 +51,7 @@ private struct FileTreeRows: View {
     @Bindable var model: FileTreeModel
     @Binding var selectedFileURL: URL?
     let projectRootURL: URL?
+    let gitStatusSnapshot: GitWorkingTreeStatusSnapshot?
     let onCreateItem: (FileTreeCreationKind) -> Void
     let onCommitCreation: () -> Void
 
@@ -70,6 +73,7 @@ private struct FileTreeRows: View {
                             model: model,
                             selectedFileURL: $selectedFileURL,
                             projectRootURL: projectRootURL,
+                            gitStatusSnapshot: gitStatusSnapshot,
                             onCreateItem: onCreateItem,
                             onCommitCreation: onCommitCreation
                         )
@@ -98,11 +102,14 @@ private struct FileTreeRows: View {
     }
 
     private func nodeLabel(_ node: FileNode) -> some View {
-        Label {
+        let changeKind = gitChangeKind(for: node)
+        let isSelected = model.selectedItemURL == node.url
+
+        return Label {
             Text(node.name)
+                .foregroundStyle(titleColor(for: node, changeKind: changeKind, isSelected: isSelected))
         } icon: {
-            Image(systemName: node.iconName)
-                .foregroundStyle(node.iconColor)
+            FileTreeNodeIcon(node: node, changeKind: changeKind)
         }
         .contentShape(Rectangle())
         .contextMenu {
@@ -125,6 +132,25 @@ private struct FileTreeRows: View {
             ? Color(nsColor: .selectedContentBackgroundColor)
             : .clear
     }
+
+    private func gitChangeKind(for node: FileNode) -> GitWorkingTreeChangeKind? {
+        guard !node.isDirectory else { return nil }
+        return gitStatusSnapshot?.changeKind(for: node.url)
+    }
+
+    private func titleColor(
+        for node: FileNode,
+        changeKind: GitWorkingTreeChangeKind?,
+        isSelected: Bool
+    ) -> Color {
+        if isSelected {
+            return Color(nsColor: .selectedTextColor)
+        }
+        if let changeKind, !node.isDirectory {
+            return changeKind.tintColor
+        }
+        return .primary
+    }
 }
 
 private struct FileTreeDirectoryContents: View {
@@ -133,6 +159,7 @@ private struct FileTreeDirectoryContents: View {
     @Bindable var model: FileTreeModel
     @Binding var selectedFileURL: URL?
     let projectRootURL: URL?
+    let gitStatusSnapshot: GitWorkingTreeStatusSnapshot?
     let onCreateItem: (FileTreeCreationKind) -> Void
     let onCommitCreation: () -> Void
 
@@ -175,9 +202,31 @@ private struct FileTreeDirectoryContents: View {
             model: model,
             selectedFileURL: $selectedFileURL,
             projectRootURL: projectRootURL,
+            gitStatusSnapshot: gitStatusSnapshot,
             onCreateItem: onCreateItem,
             onCommitCreation: onCommitCreation
         )
+    }
+}
+
+private struct FileTreeNodeIcon: View {
+    let node: FileNode
+    let changeKind: GitWorkingTreeChangeKind?
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Image(systemName: node.iconName)
+                .foregroundStyle(node.iconColor)
+
+            if let changeKind {
+                Image(systemName: changeKind.overlaySymbolName)
+                    .font(.system(size: 9, weight: .semibold))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, changeKind.tintColor)
+                    .offset(x: 4, y: 4)
+            }
+        }
+        .frame(width: 18, height: 16)
     }
 }
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Stuped is a native macOS application for viewing and editing text-based files with syntax highlighting and live preview capabilities. It targets developers who want a lightweight editor with Markdown/HTML preview, file tree browsing, and basic git context.
+Stuped is a native macOS application for viewing and editing text-based files with syntax highlighting and live preview capabilities. It targets developers who want a lightweight editor with Markdown/HTML preview, file tree browsing, and lightweight git context including working-tree change discovery.
 
 ## Terminology
 
@@ -48,7 +48,8 @@ graph TD
 6. **Text editing** flows from `NSTextView` through the `Coordinator` delegate back to `document.text` → `TabManager.activeTab.text`, marking the tab dirty (`isDirty = true`).
 7. **Saving** writes `document.text` to `sidebarFileURL`; the `onFileSaved` callback clears the tab's dirty flag.
 8. **Git info** is fetched asynchronously via `Process` inside each `DocumentPaneView` and displayed by its `PathBarView`.
-9. **File tree updates** are triggered by kqueue file system events, which rebuild the `FileTreeModel.rootNode` tree.
+9. **Git working-tree status** is fetched asynchronously in folder mode and shared across the sidebar decorations and the Git Changes window.
+10. **File tree updates** are triggered by kqueue file system events, which rebuild the `FileTreeModel.rootNode` tree.
 
 ## Technology Stack
 
@@ -74,7 +75,9 @@ Stuped/
     EditorState.swift           Cursor, indentation, line endings
     FileNode.swift              File tree node (iconName, iconColor)
     FileTreeModel.swift         Directory loading and watching
+    GitCLI.swift                Shared git subprocess runner and repo helpers
     GitInfo.swift               Async git info fetcher
+    GitWorkingTreeStatus.swift  Working-tree status snapshot and parser
     LanguageMap.swift           Extension-to-language mapping, PreviewType
     RecentFoldersStore.swift    Persisted recent-folder history for folder mode
     TabItem.swift               Per-tab state (fileURL, text, dirty tracking, view mode)
@@ -84,6 +87,8 @@ Stuped/
     ContentView.swift           Workspace layout, toolbar, pane visibility coordination
     DocumentPaneView.swift      Retained per-document pane with path bar, editor/preview, status bar
     FolderBrowserView.swift     Folder-browser window wrapper, owns TabManager
+    GitChangesPopupView.swift   Native grouped list of working-tree changes
+    GitChangesWindowManager.swift
     PathBarView.swift           Breadcrumb path bar with git branch; folder-mode history buttons stay in the native toolbar
     StatusBarView.swift         Bottom metadata bar
     TabBarView.swift            Horizontal tab strip for folder mode

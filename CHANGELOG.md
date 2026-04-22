@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Folder mode now keeps a **per-session file history** with Finder-style **Back** / **Forward** toolbar buttons. History navigation can switch to an existing tab or reopen a file whose tab was closed later in the session.
 - The folder-mode file tree now supports **New File** and **New Folder** actions for the currently selected folder, with inline naming directly in the sidebar. Press **Return** to create the item or **Escape** to cancel the draft row.
+- Folder mode now highlights **git working-tree changes** in the file tree: changed files are color-coded and show overlay icons for **new**, **modified**, and **deleted** states where applicable.
+- Clicking the folder-mode **git branch badge** now opens a native **Git Changes** window listing changed files grouped by type; selecting an existing file focuses its open tab or opens it in a new one.
 
 ### Changed
 

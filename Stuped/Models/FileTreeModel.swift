@@ -82,6 +82,7 @@ class FileTreeModel {
     var pendingCreation: PendingFileTreeCreation?
     var revealTargetURL: URL?
     var revealRequestID = 0
+    var filesystemChangeCount = 0
 
     private var eventStream: FSEventStreamRef?
     private let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .nameKey, .isHiddenKey]
@@ -402,6 +403,7 @@ class FileTreeModel {
             
             if shouldRebuild {
                 DispatchQueue.main.async {
+                    model.filesystemChangeCount += 1
                     model.rebuildTree()
                 }
             }

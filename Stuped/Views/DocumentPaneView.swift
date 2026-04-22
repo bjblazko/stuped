@@ -9,6 +9,7 @@ struct DocumentPaneView: View {
     let showMiniMap: Bool
     let isActive: Bool
     let onNavigate: (URL) -> Void
+    let onShowGitChanges: (() -> Void)?
 
     @State private var editorState = EditorState()
     @State private var gitInfo: GitInfo?
@@ -33,7 +34,8 @@ struct DocumentPaneView: View {
                 fileURL: fileURL,
                 projectRootURL: projectRootURL,
                 gitInfo: gitInfo,
-                onNavigate: onNavigate
+                onNavigate: onNavigate,
+                onShowGitChanges: onShowGitChanges
             ) {
                 if isPreviewable && !isImageFile {
                     viewModePicker
