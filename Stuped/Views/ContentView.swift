@@ -221,6 +221,10 @@ struct ContentView: View {
             guard let url else { return }
             revealInFileTree(url)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .stupedShowGitChanges)) { _ in
+            guard isFolderMode else { return }
+            showGitChangesPanel()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .stupedCreateNewFile)) { _ in
             guard isFolderMode else { return }
             beginCreation(.file)

@@ -4,7 +4,7 @@
 
 ## Overview
 
-A horizontal bar above the editor showing the full file path as clickable breadcrumb components, plus the git branch name. In folder mode, Finder-style Back / Forward controls live in the native window toolbar, while the path bar exposes breadcrumb navigation and the entry point to the Git Changes window.
+A horizontal bar above the editor showing the full file path as clickable breadcrumb components, plus the git branch name. In folder mode, Finder-style Back / Forward controls live in the native window toolbar, while the path bar exposes breadcrumb navigation and one entry point to the Git Changes window. The same panel is also available from **View > Git Changes**.
 
 ## Parameters
 
@@ -45,6 +45,7 @@ flowchart LR
 - Text: branch name (11pt, secondary, single line).
 - Tooltip (`.help`): `gitInfo?.remoteURL ?? "No remote configured"`.
 - In folder mode, when `onShowGitChanges` is present, the badge becomes a plain button with pointing-hand hover that opens the Git Changes panel.
+- The branch badge is not the only trigger; folder mode also exposes the same panel through the View menu.
 
 ## Relationship to folder-mode history controls
 

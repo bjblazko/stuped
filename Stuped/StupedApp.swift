@@ -183,8 +183,12 @@ struct StupedApp: App {
                     NotificationCenter.default.post(name: .stupedRevealInFileTree, object: nil)
                 }
                 .keyboardShortcut("j", modifiers: [.command, .shift])
+
+                Button("Git Changes") {
+                    NotificationCenter.default.post(name: .stupedShowGitChanges, object: nil)
+                }
+                .disabled(folderBrowserState.folderURL == nil)
             }
-            recentFoldersCommands
         }
     }
 
@@ -216,6 +220,7 @@ struct StupedApp: App {
 
     @CommandsBuilder
     private var recentFoldersCommands: some Commands {
+        // Install this top-level menu only once; attaching it to both scenes duplicates it.
         CommandMenu("Recent Folders") {
             if recentFoldersStore.recentFolders.isEmpty {
                 Button("No Recent Folders") {}

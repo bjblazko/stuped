@@ -108,6 +108,8 @@ Hover over each icon to see its tooltip. The overlay is hidden for plain source 
 
 In folder mode, the toolbar shows Finder-style **Back** / **Forward** buttons for the current session's file history. Going back or forward activates an existing tab when possible and reopens the file if that tab was closed later. The window title shows the active file name and falls back to the opened folder name when nothing is selected.
 
+The **Git Changes** panel can be opened either from the git branch badge in the path bar or from **View > Git Changes**.
+
 ### Path bar
 
 The path bar above the editor shows the full file path. Click any component to navigate the sidebar to that directory. Right-click any component to open the same `Copy Path` submenu used in tabs and the file tree:

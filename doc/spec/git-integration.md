@@ -123,6 +123,7 @@ Refresh triggers:
 
 - `GitChangesWindowManager` hosts a singleton native `NSPanel`.
 - `GitChangesPopupView` groups entries by **New**, **Modified**, and **Deleted**.
+- The panel can be opened from either the clickable git branch badge in the path bar or **View > Git Changes** in folder mode.
 - Selecting an available file routes back into folder-mode tab opening (`TabManager.open(url:)` via existing callbacks).
 
 ## Error handling
