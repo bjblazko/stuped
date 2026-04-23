@@ -10,6 +10,8 @@ enum AppWindowValue {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    private var receivedExternalOpenRequest = false
+
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
         // Returning false suppresses the system open/recents panel that DocumentGroup
         // shows on cold launch in macOS 14+. We create the blank window ourselves
@@ -25,13 +27,48 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             queue: .main
         ) { _ in AppearancePreference.apply() }
 
-        // Finder-initiated opens arrive via application(_:openFile:) before this
-        // point, so documents will already be populated. If the list is empty, this
-        // is a cold launch with no file argument — open a blank editor window.
+        // Cold launches with no external document-open request should still create
+        // a single blank editor window. Finder / recents opens are tracked via the
+        // delegate callbacks below and must not trigger an extra untitled window.
         DispatchQueue.main.async {
-            if NSDocumentController.shared.documents.isEmpty {
+            if !self.receivedExternalOpenRequest,
+               NSDocumentController.shared.documents.isEmpty {
                 NSDocumentController.shared.newDocument(nil)
             }
+        }
+    }
+
+    func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+        let url = URL(fileURLWithPath: filename).standardizedFileURL
+        receivedExternalOpenRequest = true
+        NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in }
+        return true
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        let urls = filenames.map { URL(fileURLWithPath: $0).standardizedFileURL }
+        guard !urls.isEmpty else {
+            sender.reply(toOpenOrPrint: .failure)
+            return
+        }
+
+        receivedExternalOpenRequest = true
+
+        let openGroup = DispatchGroup()
+        var hadFailure = false
+
+        for url in urls {
+            openGroup.enter()
+            NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
+                if error != nil {
+                    hadFailure = true
+                }
+                openGroup.leave()
+            }
+        }
+
+        openGroup.notify(queue: .main) {
+            sender.reply(toOpenOrPrint: hadFailure ? .failure : .success)
         }
     }
 
