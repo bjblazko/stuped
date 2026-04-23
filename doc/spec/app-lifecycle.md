@@ -18,7 +18,7 @@ DocumentGroup(newDocument: StupedDocument()) { file in
 - Handles files opened via Finder, File > Open, macOS recent documents, or File > New.
 - Each document gets its own window with its own `ContentView`.
 - Uses SwiftUI's native macOS full-screen interaction so the green traffic-light button enters full screen.
-- Uses custom launch behavior; the open/recent dialog is suppressed via `applicationShouldOpenUntitledFile` returning `false`, `AppDelegate` forwards external open-file events into `NSDocumentController`, and `applicationDidFinishLaunching(_:)` only creates a blank document window on cold launch when no external open request arrived.
+- Uses custom launch behavior; the open/recent dialog is suppressed via `applicationShouldOpenUntitledFile` returning `false`, and `applicationDidFinishLaunching(_:)` only creates a blank document window after a brief delay if `DocumentGroup` still has not populated `NSDocumentController`.
 
 ### 2. WindowGroup (folder browsing)
 
@@ -58,15 +58,14 @@ class AppDelegate: NSObject, NSApplicationDelegate
 ```
 
 - `applicationShouldOpenUntitledFile(_:)`: returns `false`, which suppresses the system open/recent dialog.
-- `application(_:openFile:)` / `application(_:openFiles:)`: mark that launch is handling an external document-open request and forward those URLs into `NSDocumentController`, so Finder and recent-document opens still use the document scene without also triggering an untitled fallback window.
-- `applicationDidFinishLaunching(_:)`: creates a blank document window only when launch finished without any external document-open request and no document was opened.
+- `applicationDidFinishLaunching(_:)`: waits briefly for any system-delivered `DocumentGroup` open event to populate `NSDocumentController`; only if the document list remains empty after that grace period does it create a blank document window for a true cold launch.
 
 ## Launch Flow
 
 1. App starts, SwiftUI creates scenes.
 2. If no file is being opened (cold launch), `applicationShouldOpenUntitledFile` returns `false`, suppressing the system open/recent dialog.
-3. If launch receives one or more external file-open events (for example from Finder or macOS recent documents), `AppDelegate` forwards them to `NSDocumentController`, which opens them in the document scene.
-4. `applicationDidFinishLaunching(_:)` creates a blank editor window only if no external file-open request arrived and no documents were opened.
+3. If launch receives one or more external file-open events (for example from Finder or macOS recent documents), `DocumentGroup` opens them into document windows shortly after launch.
+4. `applicationDidFinishLaunching(_:)` waits briefly; if `NSDocumentController` is still empty after that grace period, it creates a blank editor window for a true cold launch.
 
 ## Single-File Mode vs Folder Mode
 

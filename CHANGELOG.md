@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Opening a file from Finder or macOS recent documents no longer creates a second empty file-mode window in front of the requested document.
+- Cold-launch fallback window creation now waits briefly for `DocumentGroup` file-open events, so opening a file from Finder or macOS recent documents no longer spawns an extra empty editor window.
 
 ## [0.6.1] - 2026-04-23
 

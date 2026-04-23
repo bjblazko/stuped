@@ -10,13 +10,11 @@ enum AppWindowValue {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    private var receivedExternalOpenRequest = false
-
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
         // Returning false suppresses the system open/recents panel that DocumentGroup
         // shows on cold launch in macOS 14+. We create the blank window ourselves
         // in applicationDidFinishLaunching if no file was provided.
-        false
+        return false
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -27,48 +25,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             queue: .main
         ) { _ in AppearancePreference.apply() }
 
-        // Cold launches with no external document-open request should still create
-        // a single blank editor window. Finder / recents opens are tracked via the
-        // delegate callbacks below and must not trigger an extra untitled window.
-        DispatchQueue.main.async {
-            if !self.receivedExternalOpenRequest,
-               NSDocumentController.shared.documents.isEmpty {
+        // Finder/recent-document opens reach DocumentGroup shortly after launch, so
+        // avoid creating an untitled fallback window until the system has had a
+        // brief chance to populate NSDocumentController on file-open launches.
+        Task { @MainActor in
+            for _ in 0..<10 {
+                if !NSDocumentController.shared.documents.isEmpty {
+                    return
+                }
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+
+            if NSDocumentController.shared.documents.isEmpty {
                 NSDocumentController.shared.newDocument(nil)
             }
-        }
-    }
-
-    func application(_ sender: NSApplication, openFile filename: String) -> Bool {
-        let url = URL(fileURLWithPath: filename).standardizedFileURL
-        receivedExternalOpenRequest = true
-        NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in }
-        return true
-    }
-
-    func application(_ sender: NSApplication, openFiles filenames: [String]) {
-        let urls = filenames.map { URL(fileURLWithPath: $0).standardizedFileURL }
-        guard !urls.isEmpty else {
-            sender.reply(toOpenOrPrint: .failure)
-            return
-        }
-
-        receivedExternalOpenRequest = true
-
-        let openGroup = DispatchGroup()
-        var hadFailure = false
-
-        for url in urls {
-            openGroup.enter()
-            NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, error in
-                if error != nil {
-                    hadFailure = true
-                }
-                openGroup.leave()
-            }
-        }
-
-        openGroup.notify(queue: .main) {
-            sender.reply(toOpenOrPrint: hadFailure ? .failure : .success)
         }
     }
 
