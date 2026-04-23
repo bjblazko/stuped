@@ -108,10 +108,11 @@ Refresh triggers:
 
 - `.onAppear`
 - `.stupedFolderOpened`
-- active file / sidebar selection changes
 - tree-root changes
-- `FileTreeModel.filesystemChangeCount` updates from FSEvents
-- `NSApplication.didBecomeActiveNotification` to catch index-only git operations such as `git add`
+- debounced `FileTreeModel.filesystemChangeCount` updates from FSEvents
+- debounced `NSApplication.didBecomeActiveNotification` to catch index-only git operations such as `git add`
+
+Active file / sidebar selection changes reuse the existing repo snapshot instead of immediately refetching `git status`, which reduces repo-wide refresh churn while browsing files inside the same tree.
 
 ### FileTreeSidebar
 
@@ -122,6 +123,7 @@ Refresh triggers:
 ### Git Changes window
 
 - `GitChangesWindowManager` hosts a singleton native `NSPanel`.
+- The panel enforces a minimum usable content size and ignores stale autosaved frames that restore below that threshold.
 - `GitChangesPopupView` groups entries by **New**, **Modified**, and **Deleted**.
 - The panel can be opened from either the clickable git branch badge in the path bar or **View > Git Changes** in folder mode.
 - Selecting an available file routes back into folder-mode tab opening (`TabManager.open(url:)` via existing callbacks).
@@ -135,3 +137,5 @@ Refresh triggers:
 ## Threading
 
 Both `GitInfo.fetch(for:)` and `GitWorkingTreeStatus.fetch(for:)` are `async` wrappers around blocking subprocess calls. Callers launch them in `Task`s and publish results back on `MainActor`.
+
+`ContentView` cancels any in-flight working-tree refresh before scheduling the next one and applies a short debounce for file-system and app-reactivation driven refreshes.

@@ -32,7 +32,7 @@ By [Hüpattl! Software](https://huepattl.de)
 - **Dark/light mode** support throughout, including preview themes
 - **Folder browsing** mode for exploring project directories
 - **Recent files & folders** — macOS `File > Open Recent` keeps handling document history, while Stuped keeps its own recent-folder history in a dedicated menu and the folder-mode Cmd+R quick switcher, which prefers the current session's file history first
-- **Global file search** (Cmd+Shift+F) — a native resizable panel that searches all files in the open folder tree by filename, contents, or both simultaneously; an inline `ext:` field narrows results to a specific file extension; results and a line-level preview are shown in a draggable split view; navigate with ↑/↓, open with Enter, dismiss with Escape
+- **Global file search** (Cmd+Shift+F) — a native resizable panel that searches all files in the open folder tree by filename, contents, or both simultaneously; an inline `ext:` field narrows results to a specific file extension; results and a line-level preview are shown in a draggable split view; navigate with ↑/↓, open with Enter, dismiss with Escape; the panel keeps a sensible minimum size even if a previous autosaved frame was too small
 - **Reveal in File Tree** (Cmd+Shift+J) — expands, scrolls to, and highlights the active file's node in the sidebar; useful after opening a file from search or recent files. Also accessible via right-click on any tab.
 - **View Options toolbar menu** — a single `slider.horizontal.3` toolbar button opens a dropdown with all view toggles (Word Wrap, Mini-Map, Show Dot Files) and navigation shortcuts (Reveal in File Tree, Recent Files & Folders, Search Files); active toggles show a checkmark
 - **Binary file detection** (null-byte scanning in first 8 KB)
@@ -132,7 +132,7 @@ Select a folder in the sidebar to enable **New File** and **New Folder** in the 
 
 If the current file is inside a git repository, the branch name appears at the right end of the path bar. Hover for a tooltip showing the remote origin URL.
 
-In **folder mode**, that branch badge is clickable and opens a native **Git Changes** window that groups repository changes into **New**, **Modified**, and **Deleted**. Selecting an available file from that window focuses the existing tab or opens a new one. The file tree also color-codes changed files and adds overlay icons for their change type. Ignored files are excluded from this first-pass status view.
+In **folder mode**, that branch badge is clickable and opens a native **Git Changes** window that groups repository changes into **New**, **Modified**, and **Deleted**. Selecting an available file from that window focuses the existing tab or opens a new one. The window preserves a sensible minimum size and ignores stale tiny autosaved frames. The file tree also color-codes changed files and adds overlay icons for their change type. Ignored files are excluded from this first-pass status view.
 
 ## Documentation
 

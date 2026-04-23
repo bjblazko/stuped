@@ -6,8 +6,8 @@ final class GitChangesWindowManager: NSObject {
     static let shared = GitChangesWindowManager()
 
     private static let autosaveName = "GitChangesPanel1"
-    private static let defaultSize = NSSize(width: 620, height: 460)
-    private static let minAcceptableHeight: CGFloat = 280
+    private static let defaultContentSize = NSSize(width: 620, height: 460)
+    private static let minimumContentSize = NSSize(width: 560, height: 340)
 
     private var panel: NSPanel?
 
@@ -29,14 +29,11 @@ final class GitChangesWindowManager: NSObject {
 
         if !panel.isVisible {
             let restored = panel.setFrameUsingName(Self.autosaveName)
-            let frameIsUsable = panel.frame.height >= Self.minAcceptableHeight
-            if !restored || !frameIsUsable {
-                var frame = panel.frame
-                frame.size = NSSize(
-                    width: Self.defaultSize.width,
-                    height: Self.defaultSize.height + panel.titleBarHeight
+            if !restored || !panel.hasUsableContentSize(Self.minimumContentSize) {
+                panel.setFrame(
+                    panel.frameRect(forContentRect: NSRect(origin: .zero, size: Self.defaultContentSize)),
+                    display: false
                 )
-                panel.setFrame(frame, display: false)
                 panel.center()
             }
             if panel.frameAutosaveName.isEmpty {
@@ -53,20 +50,22 @@ final class GitChangesWindowManager: NSObject {
 
     private func makePanel() -> NSPanel {
         let panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: Self.defaultSize),
+            contentRect: NSRect(origin: .zero, size: Self.defaultContentSize),
             styleMask: [.titled, .closable, .resizable],
             backing: .buffered,
             defer: false
         )
         panel.title = "Git Changes"
         panel.isReleasedWhenClosed = false
-        panel.minSize = NSSize(width: 420, height: 240)
+        panel.contentMinSize = Self.minimumContentSize
         return panel
     }
 }
 
 private extension NSWindow {
-    var titleBarHeight: CGFloat {
-        frame.height - contentRect(forFrameRect: frame).height
+    func hasUsableContentSize(_ minimumContentSize: NSSize) -> Bool {
+        let contentSize = contentRect(forFrameRect: frame).size
+        return contentSize.width >= minimumContentSize.width
+            && contentSize.height >= minimumContentSize.height
     }
 }

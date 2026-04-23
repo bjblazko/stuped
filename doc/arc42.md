@@ -69,7 +69,7 @@ graph LR
 
 | External System | Interface | Purpose |
 |-----------------|-----------|---------|
-| macOS File System | `FileManager`, `open()` | Read/write files, directory listing, kqueue watching |
+| macOS File System | `FileManager`, `open()`, `FSEventStream`, `DispatchSourceFileSystemObject` | Read/write files, directory listing, recursive tree watching, per-file open-tab watching |
 | `/usr/bin/git` | `Foundation.Process` | Branch name, remote URL, repo root detection, working-tree status |
 | WebKit (in-process) | `WKWebView`, `evaluateJavaScript`, `WKURLSchemeHandler` | Markdown/HTML rendering and scoped local-asset loading from preview temp staging |
 | highlight.js (JavaScriptCore) | `Highlighter` (HighlighterSwift) | Editor syntax highlighting |
@@ -80,9 +80,9 @@ graph LR
 |------|----------|
 | Native feel | SwiftUI for layout; AppKit NSTextView for editing; retain one document pane per open tab and expose Finder-style toolbar history controls in folder mode |
 | Rich preview | WKWebView with bundled markdown-it + mermaid.js, staging generated preview HTML under the user's temp directory and serving relative assets through a custom URL scheme |
-| Responsiveness | Debounced highlighting (150ms) and preview (300ms) |
-| File awareness | kqueue-based directory watching via DispatchSource |
-| Git context | Shell out to git CLI asynchronously for branch metadata and working-tree status snapshots |
+| Responsiveness | Debounced highlighting (150ms) and preview (300ms); cached file-tree lookup maps keep large expanded sidebars from repeatedly walking the tree during render |
+| File awareness | `FSEventStream` for recursive file-tree watching; kqueue/`DispatchSourceFileSystemObject` for individual open-file reloads |
+| Git context | Shell out to git CLI asynchronously for branch metadata and working-tree status snapshots, with cancellation/debounce around folder-mode refresh bursts |
 | Minimal footprint | One external Swift dependency; JS libs bundled as resources |
 
 ## 5. Building Block View
@@ -301,16 +301,17 @@ mindmap
 | User opens a 5 MB binary file | File is detected as binary within 1ms; placeholder shown; no crash |
 | User opens a file outside any git repo | Path bar shows path without branch; no error |
 | System switches from light to dark mode | Editor re-highlights with dark theme; preview re-renders with dark CSS |
+| User reopens Git Changes or Find in Files after a bad autosaved frame | Panel opens at or above its enforced minimum content size; content remains visible and resizable |
 
 ## 11. Risks and Technical Debt
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| kqueue watches only root directory | Subdirectory changes not reflected | Accept for now; could switch to FSEvents for recursive watching |
+| Full file-tree rebuild on every relevant FSEvents batch | Large expanded trees can still cost CPU | URL-indexed node/children caches remove repeated lookup walks; incremental tree diffing remains a future option |
 | Full re-highlight on every change | Slow for very large files | 1 MB cap; could adopt tree-sitter for incremental parsing |
 | Bundled mermaid.min.js is 3.2 MB | Large app bundle | Accept; could lazy-load if bundle size becomes a concern |
 | No automated tests | Regressions undetected | Add unit tests for models and UI tests for key flows |
-| `Process.waitUntilExit()` blocks thread | Thread pool starvation under heavy load | Acceptable for 3 quick git commands; could use async Process API |
+| `Process.waitUntilExit()` blocks thread | Thread pool starvation under heavy git churn | Current folder-mode status refreshes are cancelled/debounced; could still move to a fully async `Process` API later |
 
 ## 12. Glossary
 
@@ -320,8 +321,9 @@ mindmap
 | FileDocument | Protocol for reading/writing file contents |
 | NSViewRepresentable | Protocol for wrapping AppKit views in SwiftUI |
 | Coordinator | Object mediating between SwiftUI and AppKit delegates |
+| FSEvents | macOS recursive file-system event stream API |
 | kqueue | macOS kernel event notification mechanism |
-| DispatchSource | GCD wrapper around kqueue for file system monitoring |
+| DispatchSource | GCD wrapper used here for per-file open-tab monitoring |
 | markdown-it | JavaScript library for parsing Markdown to HTML |
 | highlight.js | JavaScript library for syntax highlighting |
 | Mermaid | JavaScript library for rendering diagrams from text |

@@ -86,32 +86,37 @@ class FileTreeModel {
 
     private var eventStream: FSEventStreamRef?
     private let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .nameKey, .isHiddenKey]
+    private var nodesByURL: [URL: FileNode] = [:]
+    private var childrenByDirectoryURL: [URL: [FileNode]] = [:]
 
     deinit {
         stopWatching()
     }
 
     func loadDirectory(at url: URL) {
-        self.rootURL = url
-        self.expandedURLs = [url] // Start with root expanded
+        let normalizedURL = url.standardizedFileURL
+        self.rootURL = normalizedURL
+        self.expandedURLs = [normalizedURL] // Start with root expanded
         self.selectedItemURL = nil
         self.pendingCreation = nil
         self.revealTargetURL = nil
         rebuildTree()
-        startWatching(url: url)
+        startWatching(url: normalizedURL)
     }
 
     func reveal(_ targetURL: URL) {
+        let normalizedURL = targetURL.standardizedFileURL
         guard rootURL != nil else { return }
-        expandToURL(targetURL)
-        revealTargetURL = targetURL
+        expandToURL(normalizedURL)
+        revealTargetURL = normalizedURL
         revealRequestID += 1
     }
 
     /// Expands all ancestor directories from rootURL down to (but not including) targetURL.
     func expandToURL(_ targetURL: URL) {
         guard let rootURL else { return }
-        var current = targetURL.deletingLastPathComponent()
+        let normalizedTargetURL = targetURL.standardizedFileURL
+        var current = normalizedTargetURL.deletingLastPathComponent()
         while current.path.hasPrefix(rootURL.path) && current != rootURL {
             expandedURLs.insert(current)
             current = current.deletingLastPathComponent()
@@ -121,20 +126,22 @@ class FileTreeModel {
     }
 
     func toggleExpansion(for url: URL) {
-        if expandedURLs.contains(url) {
-            expandedURLs.remove(url)
+        let normalizedURL = url.standardizedFileURL
+        if expandedURLs.contains(normalizedURL) {
+            expandedURLs.remove(normalizedURL)
         } else {
-            expandedURLs.insert(url)
+            expandedURLs.insert(normalizedURL)
         }
         rebuildTree()
     }
 
     func setExpansion(for url: URL, isExpanded: Bool) {
+        let normalizedURL = url.standardizedFileURL
         let changed: Bool
         if isExpanded {
-            changed = expandedURLs.insert(url).inserted
+            changed = expandedURLs.insert(normalizedURL).inserted
         } else {
-            changed = expandedURLs.remove(url) != nil
+            changed = expandedURLs.remove(normalizedURL) != nil
         }
 
         if changed {
@@ -143,11 +150,14 @@ class FileTreeModel {
     }
 
     func childrenForDirectory(at url: URL) -> [FileNode]? {
-        findNode(for: url)?.children
+        childrenByDirectoryURL[url.standardizedFileURL]
     }
 
     var selectedItemIsDirectory: Bool {
         guard let selectedItemURL else { return false }
+        if let node = nodesByURL[selectedItemURL.standardizedFileURL] {
+            return node.isDirectory
+        }
         return itemExistsAsDirectory(at: selectedItemURL)
     }
 
@@ -226,31 +236,79 @@ class FileTreeModel {
     }
 
     func rebuildTree() {
-        guard let url = rootURL else { return }
-        rootNode = buildNode(at: url)
+        guard let url = rootURL else {
+            rootNode = nil
+            nodesByURL.removeAll()
+            childrenByDirectoryURL.removeAll()
+            return
+        }
+
+        var nodesByURL: [URL: FileNode] = [:]
+        var childrenByDirectoryURL: [URL: [FileNode]] = [:]
+        let rootNode = buildNode(
+            at: url,
+            nodesByURL: &nodesByURL,
+            childrenByDirectoryURL: &childrenByDirectoryURL
+        )
+
+        self.rootNode = rootNode
+        self.nodesByURL = nodesByURL
+        self.childrenByDirectoryURL = childrenByDirectoryURL
     }
 
     // MARK: - Tree Building
 
     /// Builds a node, but ONLY recurses into children if the node is expanded.
-    private func buildNode(at url: URL) -> FileNode {
-        let name = url.lastPathComponent
-        let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+    private func buildNode(
+        at url: URL,
+        nodesByURL: inout [URL: FileNode],
+        childrenByDirectoryURL: inout [URL: [FileNode]]
+    ) -> FileNode {
+        let normalizedURL = url.standardizedFileURL
+        let name = normalizedURL.lastPathComponent
+        let isDir = (try? normalizedURL.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
 
         if isDir {
             let children: [FileNode]?
-            if expandedURLs.contains(url) || url == rootURL {
-                children = buildChildren(at: url)
+            if expandedURLs.contains(normalizedURL) || normalizedURL == rootURL {
+                children = buildChildren(
+                    at: normalizedURL,
+                    nodesByURL: &nodesByURL,
+                    childrenByDirectoryURL: &childrenByDirectoryURL
+                )
             } else {
                 children = nil // Lazy load: don't crawl non-expanded folders
             }
-            return FileNode(id: url, name: name, url: url, isDirectory: true, children: children)
+            let node = FileNode(
+                id: normalizedURL,
+                name: name,
+                url: normalizedURL,
+                isDirectory: true,
+                children: children
+            )
+            nodesByURL[normalizedURL] = node
+            if let children {
+                childrenByDirectoryURL[normalizedURL] = children
+            }
+            return node
         } else {
-            return FileNode(id: url, name: name, url: url, isDirectory: false, children: nil)
+            let node = FileNode(
+                id: normalizedURL,
+                name: name,
+                url: normalizedURL,
+                isDirectory: false,
+                children: nil
+            )
+            nodesByURL[normalizedURL] = node
+            return node
         }
     }
 
-    private func buildChildren(at url: URL) -> [FileNode] {
+    private func buildChildren(
+        at url: URL,
+        nodesByURL: inout [URL: FileNode],
+        childrenByDirectoryURL: inout [URL: [FileNode]]
+    ) -> [FileNode] {
         guard let contents = try? FileManager.default.contentsOfDirectory(
             at: url,
             includingPropertiesForKeys: Array(resourceKeys),
@@ -267,32 +325,17 @@ class FileTreeModel {
                 return nil
             }
 
-            return buildNode(at: childURL)
+            return buildNode(
+                at: childURL,
+                nodesByURL: &nodesByURL,
+                childrenByDirectoryURL: &childrenByDirectoryURL
+            )
         }
 
         // Sort: directories first, then alphabetical by name (case-insensitive)
         return nodes.sorted { a, b in
             comesBefore(name: a.name, isDirectory: a.isDirectory, otherName: b.name, otherIsDirectory: b.isDirectory)
         }
-    }
-
-    private func findNode(for targetURL: URL) -> FileNode? {
-        guard let rootNode else { return nil }
-        return findNode(for: targetURL, in: rootNode)
-    }
-
-    private func findNode(for targetURL: URL, in node: FileNode) -> FileNode? {
-        if node.url == targetURL {
-            return node
-        }
-
-        guard let children = node.children else { return nil }
-        for child in children {
-            if let match = findNode(for: targetURL, in: child) {
-                return match
-            }
-        }
-        return nil
     }
 
     private func createItem(kind: FileTreeCreationKind, in parentURL: URL, named rawName: String) throws -> URL {
@@ -364,7 +407,7 @@ class FileTreeModel {
     }
 
     private func itemExistsAsDirectory(at url: URL) -> Bool {
-        (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
+        (try? url.standardizedFileURL.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
     }
 
     // MARK: - File Watching

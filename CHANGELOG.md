@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-04-23
+
+### Fixed
+
+- Folder mode now avoids repeated recursive file-tree lookups while rendering large expanded sidebars, reducing CPU churn in big folder structures.
+- Folder-mode git status refreshes no longer refetch on every file selection change and now debounce filesystem/reactivation bursts to reduce unnecessary background work.
+- The **Git Changes** and **Find in Files** panels now enforce usable minimum sizes and reset stale tiny autosaved frames instead of reopening nearly collapsed.
+
 ## [0.6.0] - 2026-04-22
 
 ### Added

@@ -89,15 +89,16 @@ An `@Observable` class that builds and watches a directory tree.
 `loadDirectory(at:)`:
 
 1. Stores the `rootURL`.
-2. Resets `expandedURLs` to contain the root folder so the first level stays visible.
-3. Clears the selected tree item and any pending inline create draft.
-4. Calls `rebuildTree()` to build `rootNode` recursively.
-5. Calls `startWatching(url:)` to monitor changes.
+2. Normalizes the folder URL with `standardizedFileURL` so expansion, selection, reveal, and cache lookups use stable keys.
+3. Resets `expandedURLs` to contain the root folder so the first level stays visible.
+4. Clears the selected tree item and any pending inline create draft.
+5. Calls `rebuildTree()` to build `rootNode` recursively.
+6. Calls `startWatching(url:)` to monitor changes.
 
 Selection and creation state:
 
 - `selectItem(_:)` tracks the current sidebar selection independently from the active editor tab so folders can become explicit action targets.
-- `selectedDirectoryURL` / `canCreateInSelectedDirectory` only resolve to `true` when the current tree selection is a directory.
+- `selectedDirectoryURL` / `canCreateInSelectedDirectory` only resolve to `true` when the current tree selection is a directory, using the in-memory node cache when possible instead of re-reading file metadata.
 - `beginCreation(kind:)` expands the selected directory and creates one `PendingFileTreeCreation` draft row under it.
 - `commitPendingCreation()` validates the name, creates either an empty file or a directory on disk, clears the draft, selects the new item, and issues a reveal request so the created row stays visible.
 - `cancelPendingCreation()` removes the inline draft row without touching the file system.
@@ -123,6 +124,13 @@ Expands the ancestor path via `expandToURL(_:)`, records the file URL as the cur
 3. Recursively builds child nodes.
 4. Sorts: directories first, then alphabetical by name (case-insensitive, using `localizedCaseInsensitiveCompare`).
 
+`rebuildTree()` also rebuilds URL-indexed caches for:
+
+- direct node lookup by URL
+- child-array lookup for expanded directories
+
+`childrenForDirectory(at:)` reads those caches, avoiding repeated recursive searches through the tree during sidebar rendering.
+
 ### File Watching
 
 Uses `FSEventStream` (CoreServices) for recursive directory watching (ADR-0015):
@@ -137,7 +145,7 @@ The 300 ms latency coalesces rapid bursts (e.g., `git checkout` touching many fi
 ### Limitations
 
 - Rebuilds the entire tree on any change (no incremental updates).
-- `expandedURLs` is reset to `[]` when `loadDirectory(at:)` is called (fresh folder open starts collapsed).
+- `expandedURLs` is reset to contain only the root URL when `loadDirectory(at:)` is called.
 
 > **See also:** `TabManager` uses kqueue/DispatchSource to watch individual *open* files and reload their content when an external process writes to them (ADR-0013). The two watching mechanisms serve different purposes and coexist.
 
@@ -160,6 +168,7 @@ A SwiftUI `List` with `.sidebar` style rendered via explicit `DisclosureGroup` e
 - Displays `rootNode.children` in a `.sidebar` `List` wrapped in `ScrollViewReader`, using a recursive private view `FileTreeRows`.
 - Each directory node is rendered as a `DisclosureGroup` whose `isExpanded` binding reads from and writes to `expandedURLs`. Clicking a folder expands/collapses it and also selects it as the current file-tree target. Programmatic reveal updates the set via `FileTreeModel.reveal(_:)`, which expands ancestors and issues a scroll request for the target file row.
 - Each file node is rendered as a tappable `Label`; tapping it updates both the tree selection and `selectedFileURL`, which drives folder-mode tab opening in `ContentView`.
+- Selection and create-enable state are read once per render pass and passed down through the recursive row views as plain values, reducing per-row Observation churn.
 - Each label shows `Text(node.name)` and a tinted `Image(systemName: node.iconName).foregroundStyle(node.iconColor)`.
 - When `gitStatusSnapshot` has a change entry for a file row, the filename text is tinted by change type and the icon gains a small overlay badge:
   - **New** — green `plus.circle.fill`

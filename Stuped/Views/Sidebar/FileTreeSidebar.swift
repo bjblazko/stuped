@@ -12,11 +12,15 @@ struct FileTreeSidebar: View {
     var body: some View {
         Group {
             if let root = model.rootNode, let children = root.children {
+                let selectedItemURL = model.selectedItemURL
+                let canCreateInSelectedDirectory = model.canCreateInSelectedDirectory
                 ScrollViewReader { proxy in
                     List {
                         FileTreeRows(
                             nodes: children,
                             model: model,
+                            selectedItemURL: selectedItemURL,
+                            canCreateInSelectedDirectory: canCreateInSelectedDirectory,
                             selectedFileURL: $selectedFileURL,
                             projectRootURL: projectRootURL,
                             gitStatusSnapshot: gitStatusSnapshot,
@@ -49,6 +53,8 @@ struct FileTreeSidebar: View {
 private struct FileTreeRows: View {
     let nodes: [FileNode]
     @Bindable var model: FileTreeModel
+    let selectedItemURL: URL?
+    let canCreateInSelectedDirectory: Bool
     @Binding var selectedFileURL: URL?
     let projectRootURL: URL?
     let gitStatusSnapshot: GitWorkingTreeStatusSnapshot?
@@ -71,6 +77,8 @@ private struct FileTreeRows: View {
                             parentURL: node.url,
                             children: children,
                             model: model,
+                            selectedItemURL: selectedItemURL,
+                            canCreateInSelectedDirectory: canCreateInSelectedDirectory,
                             selectedFileURL: $selectedFileURL,
                             projectRootURL: projectRootURL,
                             gitStatusSnapshot: gitStatusSnapshot,
@@ -103,7 +111,7 @@ private struct FileTreeRows: View {
 
     private func nodeLabel(_ node: FileNode) -> some View {
         let changeKind = gitChangeKind(for: node)
-        let isSelected = model.selectedItemURL == node.url
+        let isSelected = selectedItemURL == node.url
 
         return Label {
             Text(node.name)
@@ -118,17 +126,17 @@ private struct FileTreeRows: View {
             Button(FileTreeCreationKind.file.menuTitle) {
                 onCreateItem(.file)
             }
-            .disabled(!model.canCreateInSelectedDirectory)
+            .disabled(!canCreateInSelectedDirectory)
 
             Button(FileTreeCreationKind.folder.menuTitle) {
                 onCreateItem(.folder)
             }
-            .disabled(!model.canCreateInSelectedDirectory)
+            .disabled(!canCreateInSelectedDirectory)
         }
     }
 
     private func rowBackground(for node: FileNode) -> Color {
-        model.selectedItemURL == node.url
+        selectedItemURL == node.url
             ? Color(nsColor: .selectedContentBackgroundColor)
             : .clear
     }
@@ -157,6 +165,8 @@ private struct FileTreeDirectoryContents: View {
     let parentURL: URL
     let children: [FileNode]
     @Bindable var model: FileTreeModel
+    let selectedItemURL: URL?
+    let canCreateInSelectedDirectory: Bool
     @Binding var selectedFileURL: URL?
     let projectRootURL: URL?
     let gitStatusSnapshot: GitWorkingTreeStatusSnapshot?
@@ -200,6 +210,8 @@ private struct FileTreeDirectoryContents: View {
         FileTreeRows(
             nodes: nodes,
             model: model,
+            selectedItemURL: selectedItemURL,
+            canCreateInSelectedDirectory: canCreateInSelectedDirectory,
             selectedFileURL: $selectedFileURL,
             projectRootURL: projectRootURL,
             gitStatusSnapshot: gitStatusSnapshot,

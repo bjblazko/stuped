@@ -185,7 +185,7 @@ struct ContentView: View {
         }
         .onChange(of: treeModel.filesystemChangeCount) { _, _ in
             if isFolderMode {
-                refreshGitWorkingTreeStatus()
+                refreshGitWorkingTreeStatus(debounceNanoseconds: 300_000_000)
             }
         }
         .onChange(of: showHiddenFiles, initial: true) { _, newValue in
@@ -203,7 +203,6 @@ struct ContentView: View {
                     loadFileFromSidebar(url: newURL)
                 }
                 FolderBrowserState.shared.selectedFileURL = newURL
-                refreshGitWorkingTreeStatus(using: newURL)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .stupedTabSwitched)) { notification in
@@ -212,7 +211,7 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             if isFolderMode {
-                refreshGitWorkingTreeStatus()
+                refreshGitWorkingTreeStatus(debounceNanoseconds: 150_000_000)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .stupedRevealInFileTree)) { notification in
@@ -503,7 +502,10 @@ struct ContentView: View {
         sidebarFileURL ?? treeModel.rootURL ?? projectRootURL
     }
 
-    private func refreshGitWorkingTreeStatus(using explicitURL: URL? = nil) {
+    private func refreshGitWorkingTreeStatus(
+        using explicitURL: URL? = nil,
+        debounceNanoseconds: UInt64 = 0
+    ) {
         guard isFolderMode else { return }
 
         let targetURL = explicitURL ?? gitStatusContextURL
@@ -515,6 +517,14 @@ struct ContentView: View {
         }
 
         gitStatusRefreshTask = Task {
+            if debounceNanoseconds > 0 {
+                do {
+                    try await Task.sleep(nanoseconds: debounceNanoseconds)
+                } catch {
+                    return
+                }
+            }
+
             let snapshot = await GitWorkingTreeStatus.fetch(for: targetURL)
             guard !Task.isCancelled else { return }
 

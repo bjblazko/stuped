@@ -45,6 +45,7 @@ flowchart LR
 - Text: branch name (11pt, secondary, single line).
 - Tooltip (`.help`): `gitInfo?.remoteURL ?? "No remote configured"`.
 - In folder mode, when `onShowGitChanges` is present, the badge becomes a plain button with pointing-hand hover that opens the Git Changes panel.
+- The Git Changes panel restores its autosaved size when usable, but falls back to a safe minimum/default size if a stale saved frame is too small to show content.
 - The branch badge is not the only trigger; folder mode also exposes the same panel through the View menu.
 
 ## Relationship to folder-mode history controls

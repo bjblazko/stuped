@@ -48,8 +48,9 @@ graph TD
 6. **Text editing** flows from `NSTextView` through the `Coordinator` delegate back to `document.text` → `TabManager.activeTab.text`, marking the tab dirty (`isDirty = true`).
 7. **Saving** writes `document.text` to `sidebarFileURL`; the `onFileSaved` callback clears the tab's dirty flag.
 8. **Git info** is fetched asynchronously via `Process` inside each `DocumentPaneView` and displayed by its `PathBarView`.
-9. **Git working-tree status** is fetched asynchronously in folder mode and shared across the sidebar decorations and the Git Changes window.
-10. **File tree updates** are triggered by kqueue file system events, which rebuild the `FileTreeModel.rootNode` tree.
+9. **Git working-tree status** is fetched asynchronously in folder mode and shared across the sidebar decorations and the Git Changes window; selection changes reuse the current snapshot, while filesystem/reactivation refreshes are debounced.
+10. **File tree updates** are triggered by recursive `FSEventStream` events, which rebuild the `FileTreeModel.rootNode` tree and refresh its URL-indexed lookup caches.
+11. **Utility panels** (`Git Changes`, `Find in Files`) restore their autosaved frames when usable, but reset to safe defaults if a stale saved size is too small.
 
 ## Technology Stack
 
@@ -61,7 +62,7 @@ graph TD
 | Syntax highlighting | HighlighterSwift (highlight.js wrapper) |
 | Markdown parsing | markdown-it.min.js (bundled) |
 | Diagrams | mermaid.min.js (bundled) |
-| File watching | Darwin kqueue via DispatchSource |
+| File watching | `FSEventStream` for recursive tree watching; `DispatchSourceFileSystemObject` for open-file reloads |
 | Git | /usr/bin/git via Foundation Process |
 | State management | Observation framework (@Observable) |
 

@@ -8,8 +8,8 @@ final class GlobalSearchWindowManager: NSObject {
     static let shared = GlobalSearchWindowManager()
 
     private static let autosaveName        = "GlobalSearchPanel5"
-    private static let defaultSize         = NSSize(width: 720, height: 640)
-    private static let minAcceptableHeight: CGFloat = 400  // guards against stale bad autosaves
+    private static let defaultContentSize  = NSSize(width: 720, height: 640)
+    private static let minimumContentSize  = NSSize(width: 620, height: 420)
 
     private var panel: NSPanel?
 
@@ -47,14 +47,11 @@ final class GlobalSearchWindowManager: NSObject {
         // size immediately. With sizingOptions = [] nothing will override this.
         if !p.isVisible {
             let restored = p.setFrameUsingName(Self.autosaveName)
-            let frameIsUsable = p.frame.height >= Self.minAcceptableHeight
-            if !restored || !frameIsUsable {
-                var r = p.frame
-                r.size = NSSize(
-                    width:  Self.defaultSize.width,
-                    height: Self.defaultSize.height + p.titleBarHeight
+            if !restored || !p.hasUsableContentSize(Self.minimumContentSize) {
+                p.setFrame(
+                    p.frameRect(forContentRect: NSRect(origin: .zero, size: Self.defaultContentSize)),
+                    display: false
                 )
-                p.setFrame(r, display: false)
                 p.center()
             }
             if p.frameAutosaveName.isEmpty {
@@ -81,14 +78,14 @@ final class GlobalSearchWindowManager: NSObject {
 
     private func makePanel() -> NSPanel {
         let p = NSPanel(
-            contentRect: NSRect(origin: .zero, size: Self.defaultSize),
+            contentRect: NSRect(origin: .zero, size: Self.defaultContentSize),
             styleMask:   [.titled, .closable, .resizable],
             backing:     .buffered,
             defer:       false
         )
         p.title = "Find in Files"
         p.isReleasedWhenClosed = false
-        p.minSize = NSSize(width: 420, height: 300)
+        p.contentMinSize = Self.minimumContentSize
         return p
     }
 
@@ -106,8 +103,9 @@ final class GlobalSearchWindowManager: NSObject {
 // MARK: - NSWindow helpers
 
 private extension NSWindow {
-    /// Height of the title bar in points.
-    var titleBarHeight: CGFloat {
-        frame.height - contentRect(forFrameRect: frame).height
+    func hasUsableContentSize(_ minimumContentSize: NSSize) -> Bool {
+        let contentSize = contentRect(forFrameRect: frame).size
+        return contentSize.width >= minimumContentSize.width
+            && contentSize.height >= minimumContentSize.height
     }
 }
