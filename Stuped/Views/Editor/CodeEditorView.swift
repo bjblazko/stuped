@@ -103,6 +103,8 @@ struct CodeEditorView: NSViewRepresentable {
         gutter.setup(textView: textView)
         let castScrollView = scrollView as! NSScrollView
         miniMap.setup(textView: textView, scrollView: castScrollView)
+        gutter.setPaused(!isActive)
+        miniMap.setPaused(!isActive || !showMiniMap)
 
         // Defer highlighting
         DispatchQueue.main.async {
@@ -143,12 +145,12 @@ struct CodeEditorView: NSViewRepresentable {
 
         if textView.string != text {
             textView.string = text
-            context.coordinator.applyHighlighting()
+            context.coordinator.scheduleHighlightingIfActive()
         }
 
         if context.coordinator.currentLanguage != language {
             context.coordinator.currentLanguage = language
-            context.coordinator.applyHighlighting()
+            context.coordinator.scheduleHighlightingIfActive()
         }
 
         if context.coordinator.currentWordWrap != wordWrap,
@@ -162,18 +164,25 @@ struct CodeEditorView: NSViewRepresentable {
             context.coordinator.miniMapView?.isHidden = !showMiniMap
             context.coordinator.miniMapHiddenConstraint?.isActive = !showMiniMap
             context.coordinator.miniMapWidthConstraint?.isActive = showMiniMap
+            context.coordinator.refreshAuxiliaryViewState()
         }
 
         if let scrollView = textView.enclosingScrollView {
             Self.applyEditorColors(to: textView, scrollView: scrollView)
         }
 
+        textView.isEditable = isActive
+
         if context.coordinator.currentIsActive != isActive {
             context.coordinator.currentIsActive = isActive
+            context.coordinator.refreshAuxiliaryViewState()
             context.coordinator.updateFocus()
+            context.coordinator.applyDeferredHighlightingIfNeeded()
         }
 
-        context.coordinator.restoreScrollPositionIfNeeded()
+        if isActive {
+            context.coordinator.restoreScrollPositionIfNeeded()
+        }
     }
 
     private static func applyEditorColors(to textView: NSTextView, scrollView: NSScrollView) {
@@ -221,6 +230,7 @@ struct CodeEditorView: NSViewRepresentable {
         private var highlighter: Highlighter?
         private var highlightWorkItem: DispatchWorkItem?
         private var lastRestoredScrollPosition: CGPoint?
+        private var needsDeferredHighlighting = false
 
         init(_ parent: CodeEditorView) {
             self.parent = parent
@@ -240,23 +250,30 @@ struct CodeEditorView: NSViewRepresentable {
 
         func setupHighlighter() {
             highlighter = Highlighter()
-            applyHighlighting()
+            refreshAuxiliaryViewState()
+            scheduleHighlightingIfActive()
+        }
+
+        func refreshAuxiliaryViewState() {
+            gutterView?.setPaused(!currentIsActive)
+            miniMapView?.setPaused(!currentIsActive || !currentShowMiniMap)
         }
 
         func reportScrollPosition() {
-            guard let scrollView else { return }
+            guard currentIsActive, let scrollView else { return }
             let position = scrollView.contentView.bounds.origin
             lastRestoredScrollPosition = position
             parent.onScrollPositionChanged?(position)
         }
 
         func restoreScrollPositionIfNeeded() {
+            guard currentIsActive else { return }
             guard lastRestoredScrollPosition != parent.scrollPosition else { return }
             restoreScrollPosition()
         }
 
         func restoreScrollPosition() {
-            guard let scrollView else { return }
+            guard currentIsActive, let scrollView else { return }
             let documentBounds = scrollView.documentView?.bounds ?? .zero
             let maxX = max(0, documentBounds.width - scrollView.contentSize.width)
             let maxY = max(0, documentBounds.height - scrollView.contentSize.height)
@@ -287,6 +304,22 @@ struct CodeEditorView: NSViewRepresentable {
             }
         }
 
+        func scheduleHighlightingIfActive() {
+            guard currentIsActive else {
+                highlightWorkItem?.cancel()
+                needsDeferredHighlighting = true
+                return
+            }
+            needsDeferredHighlighting = false
+            applyHighlighting()
+        }
+
+        func applyDeferredHighlightingIfNeeded() {
+            guard currentIsActive, needsDeferredHighlighting else { return }
+            needsDeferredHighlighting = false
+            applyHighlighting()
+        }
+
         func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
             if commandSelector == #selector(NSResponder.insertTab(_:)) {
                 textView.insertText("    ", replacementRange: textView.selectedRange())
@@ -311,7 +344,7 @@ struct CodeEditorView: NSViewRepresentable {
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
+            guard currentIsActive, let textView = notification.object as? NSTextView else { return }
             parent.editorState?.updateCursor(text: textView.string, selectedRange: textView.selectedRange())
             miniMapView?.needsDisplay = true
         }
@@ -327,13 +360,17 @@ struct CodeEditorView: NSViewRepresentable {
 
             highlightWorkItem?.cancel()
             let workItem = DispatchWorkItem { [weak self] in
-                self?.applyHighlighting()
+                self?.scheduleHighlightingIfActive()
             }
             highlightWorkItem = workItem
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: workItem)
         }
 
         func applyHighlighting() {
+            guard currentIsActive else {
+                needsDeferredHighlighting = true
+                return
+            }
             guard let textView = textView,
                   let highlighter = highlighter else { return }
 

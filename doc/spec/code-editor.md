@@ -109,7 +109,7 @@ A custom `NSView` subclass that draws line numbers.
 - `NSText.didChangeNotification` (text edits)
 - `NSView.boundsDidChangeNotification` (scrolling)
 
-Both trigger `setNeedsDisplay(true)`.
+Both trigger `setNeedsDisplay(true)` only while the pane is active. Inactive retained tabs pause gutter redraws and fall back to drawing only the background/separator chrome.
 
 ## Word Wrap
 
@@ -131,6 +131,7 @@ When word wrap is off the text container is effectively unbounded horizontally, 
 - Folder-mode tab switching normally does not recreate the editor at all: each open tab keeps its own mounted pane, so returning to a tab shows the same live `NSTextView` instance.
 - The local scroll binding is still used when the editor subtree is remounted inside the same pane, for example when toggling between Edit and Split.
 - Highlight reapplication still preserves the visible rect within the mounted editor instance, so live typing does not jump the viewport.
+- Inactive panes stop reporting or restoring scroll position until they become active again.
 
 ## Mini-Map
 
@@ -164,6 +165,8 @@ Each `draw(_:dirtyRect:)` call executes four passes:
 | Selection change | `miniMapView.needsDisplay = true` in `textViewDidChangeSelection(_:)` |
 | Highlighting applied | `miniMapView.needsDisplay = true` after `textStorage.setAttributedString` |
 
+Inactive retained tabs pause mini-map redraws entirely; the mini-map resumes once the tab becomes active again.
+
 ### Click / Drag Navigation
 
 Mouse events convert the click Y-coordinate to a fraction of `miniMapContentHeight` (= `logicalLineCount × slotHeight`) and scroll the text view to the corresponding position in the document.
@@ -180,6 +183,7 @@ The `Coordinator` class is the `NSTextViewDelegate` and manages:
 | Appearance changes | `NSKeyValueObservation` on `NSApp.effectiveAppearance` |
 | Active-pane focus | `updateFocus()` makes the visible editor the first responder |
 | Viewport retention | `NSView.boundsDidChangeNotification` + `restoreScrollPosition()` |
+| Inactive-pane throttling | pauses gutter/mini-map redraws and defers syntax highlighting until the pane becomes active again |
 
 ### Feedback Loop Prevention
 

@@ -26,8 +26,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.huepattl.Stuped
         PRODUCT_NAME: Stuped
-        MARKETING_VERSION: "0.6.2"
-        CURRENT_PROJECT_VERSION: "12"
+        MARKETING_VERSION: "0.6.3"
+        CURRENT_PROJECT_VERSION: "13"
         SWIFT_VERSION: "5.9"
         MACOSX_DEPLOYMENT_TARGET: "15.0"
         INFOPLIST_FILE: Stuped/Info.plist

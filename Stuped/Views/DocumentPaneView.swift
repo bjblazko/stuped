@@ -30,37 +30,49 @@ struct DocumentPaneView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PathBarView(
-                fileURL: fileURL,
-                projectRootURL: projectRootURL,
-                gitInfo: gitInfo,
-                onNavigate: onNavigate,
-                onShowGitChanges: onShowGitChanges
-            ) {
-                if isPreviewable && !isImageFile {
-                    viewModePicker
+            if isActive {
+                PathBarView(
+                    fileURL: fileURL,
+                    projectRootURL: projectRootURL,
+                    gitInfo: gitInfo,
+                    onNavigate: onNavigate,
+                    onShowGitChanges: onShowGitChanges
+                ) {
+                    if isPreviewable && !isImageFile {
+                        viewModePicker
+                    }
                 }
             }
 
             editorArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if viewMode != .preview && !isImageFile {
+            if isActive && viewMode != .preview && !isImageFile {
                 StatusBarView(editorState: editorState, language: detectedLanguage)
             }
         }
         .onAppear {
-            synchronizeEditorState()
             normalizeViewMode()
-            refreshGitInfo()
+            if isActive {
+                synchronizeEditorState()
+                refreshGitInfo()
+            }
         }
         .onChange(of: fileURL) { _, _ in
             normalizeViewMode()
-            refreshGitInfo()
+            if isActive || fileURL == nil {
+                refreshGitInfo()
+            }
         }
         .onChange(of: text) { _, _ in
             if isActive {
                 synchronizeEditorState()
+            }
+        }
+        .onChange(of: isActive) { _, newValue in
+            if newValue {
+                synchronizeEditorState()
+                refreshGitInfo()
             }
         }
     }
@@ -118,6 +130,7 @@ struct DocumentPaneView: View {
                     text: text,
                     previewType: previewType,
                     fileURL: fileURL,
+                    isActive: isActive,
                     scrollPosition: previewScrollPosition,
                     onScrollPositionChanged: { previewScrollPosition = $0 }
                 )

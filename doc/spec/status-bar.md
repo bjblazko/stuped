@@ -35,6 +35,7 @@ A horizontal bar at the bottom of the editor showing metadata about the current 
 ### Visibility
 
 Hidden when `viewMode == .preview` (preview-only mode shows no status bar).
+Hidden for inactive retained tab panes; only the active pane keeps status-bar chrome mounted.
 
 ## EditorState
 

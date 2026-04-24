@@ -88,10 +88,12 @@ Updates are debounced at **300ms** via `DispatchWorkItem` on the main queue.
 1. SwiftUI calls `updateNSView` when `text` changes.
 2. Coordinator stores `pendingText` and calls `scheduleRender()`.
 3. After 300ms, `executeRender()` runs:
-   - Base64-encodes the UTF-8 payload for safe transport into JavaScript.
-   - Calls `renderMarkdown(...)` for Markdown or `updateContent(...)` for HTML via `WKWebView.evaluateJavaScript`.
+    - Base64-encodes the UTF-8 payload for safe transport into JavaScript.
+    - Calls `renderMarkdown(...)` for Markdown or `updateContent(...)` for HTML via `WKWebView.evaluateJavaScript`.
 4. The `pageLoaded` flag ensures JavaScript is not called before the initial page finishes loading.
 5. Scroll-only SwiftUI updates do not trigger a preview re-render; the coordinator only schedules JavaScript updates when `text` actually changed.
+
+Inactive retained tabs keep their `WKWebView`, but they now defer queued preview renders and scroll restoration until the tab becomes active again. This keeps tab restoration fast without spending idle CPU on hidden previews.
 
 If the active file changes to a different parent directory or to a different preview type (`.markdown` vs `.html`), the coordinator performs a full page reload so the new base path and JavaScript wrapper are both refreshed.
 
@@ -140,6 +142,7 @@ The HTML wrappers install a small JavaScript bridge that reports `window.scrollX
 - The coordinator writes the latest preview position back to the owning `DocumentPaneView` through `onScrollPositionChanged`.
 - After a full page load, the coordinator restores the saved preview scroll position with `window.scrollTo(...)`, then reports the effective position back to Swift.
 - Tab switching normally returns to the same mounted `WKWebView`; the scroll bridge remains important when the preview subtree is remounted inside the same pane, such as switching between Preview and Split.
+- Hidden retained tabs stop issuing scroll-restore JavaScript until reactivated.
 
 ## Coordinator
 

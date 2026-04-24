@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-04-24
+
+### Fixed
+
+- Folder-mode idle CPU is reduced by making file-tree FSEvents handling more selective: only visible structural changes rebuild the sidebar, while git-relevant content and metadata changes trigger lighter-weight status refreshes.
+- Repeated folder-mode git status refreshes now reuse the resolved repository root instead of re-running repository discovery for every debounced refresh.
+- Inactive retained tabs now pause heavyweight editor and preview work, deferring syntax highlighting, mini-map/gutter redraw cost, and preview JavaScript updates until the tab becomes active again.
+- Folder-mode git refreshes now run through a single coalesced queue, preventing overlapping `git status` subprocesses during filesystem event bursts and rate-limiting background refreshes while the project is otherwise idle.
+- Inactive retained tabs no longer keep path-bar and status-bar chrome mounted, reducing hidden SwiftUI/AppKit layout work without giving up fast tab restoration.
+- File-tree FSEvents bursts now coalesce into one delayed sidebar rebuild instead of repeatedly rebuilding the visible tree on every callback, reducing idle main-thread churn when a noisy project path keeps emitting file events.
+
 ## [0.6.2] - 2026-04-23
 
 ### Fixed

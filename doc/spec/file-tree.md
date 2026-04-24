@@ -82,7 +82,7 @@ An `@Observable` class that builds and watches a directory tree.
 | `expandedURLs` | `Set<URL>` | Directory URLs currently expanded in the sidebar |
 | `selectedItemURL` | `URL?` | Currently selected file-tree item (file or folder) |
 | `pendingCreation` | `PendingFileTreeCreation?` | Inline draft item being named under the selected directory |
-| `filesystemChangeCount` | `Int` | Monotonic counter incremented when a relevant FSEvents update reaches the model |
+| `gitRelevantChangeCount` | `Int` | Monotonic counter incremented when FSEvents reports a working-tree or relevant git-metadata change that should refresh git decorations |
 
 ### Building the Tree
 
@@ -137,14 +137,19 @@ Uses `FSEventStream` (CoreServices) for recursive directory watching (ADR-0015):
 
 1. `FSEventStreamCreate` is called with the root URL path, a 300 ms latency, and `kFSEventStreamCreateFlagUseCFTypes`.
 2. The stream is scheduled on `DispatchQueue.main` via `FSEventStreamSetDispatchQueue`.
-3. On any event (file/directory created, renamed, deleted, modified anywhere in the tree): increments `filesystemChangeCount` and calls `rebuildTree()`.
-4. `stopWatching()` stops, invalidates, and releases the stream; called in `deinit` and before starting a new watch.
+3. The callback classifies each event by both path and flags instead of rebuilding on every touched file:
+   - only **structural** events (`created`, `removed`, `renamed`, `rootChanged`) whose direct parent directory is currently expanded trigger `rebuildTree()`
+   - hidden-path events are ignored for tree rebuilding when hidden files are not being shown
+   - content-only writes inside visible files no longer force a tree rebuild
+4. Filesystem-triggered rebuild execution is trailing-edge debounced inside `FileTreeModel`, so one noisy callback burst produces a single visible-tree rebuild instead of one rebuild per callback.
+5. Working-tree relevant file events, plus targeted git metadata changes such as `.git/HEAD`, `.git/index`, `.git/packed-refs`, and `.git/refs/**`, increment `gitRelevantChangeCount` so folder-mode git decorations can refresh without forcing a sidebar rebuild.
+6. `stopWatching()` stops, invalidates, and releases the stream; called in `deinit` and before starting a new watch.
 
-The 300 ms latency coalesces rapid bursts (e.g., `git checkout` touching many files) into a single `rebuildTree()` call.
+The 300 ms latency still coalesces rapid bursts (e.g., `git checkout` touching many files), and the model now adds one more delayed batching layer before `rebuildTree()` itself so repeated callbacks from the same burst do not keep rewalking the visible subtree on the main queue. Tree-structure invalidation remains separate from git-decoration invalidation.
 
 ### Limitations
 
-- Rebuilds the entire tree on any change (no incremental updates).
+- Still rebuilds the visible tree snapshot as a whole when a relevant structural event arrives (no incremental patching of the in-memory tree).
 - `expandedURLs` is reset to contain only the root URL when `loadDirectory(at:)` is called.
 
 > **See also:** `TabManager` uses kqueue/DispatchSource to watch individual *open* files and reload their content when an external process writes to them (ADR-0013). The two watching mechanisms serve different purposes and coexist.

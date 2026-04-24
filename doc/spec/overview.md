@@ -47,8 +47,8 @@ graph TD
 5. **Copy Path** actions in tab and file-tree context menus derive name-only, project-relative, and absolute clipboard strings from the selected URL. Relative paths are always based on `FolderBrowserState.folderURL`, even if the sidebar is currently narrowed to a subfolder.
 6. **Text editing** flows from `NSTextView` through the `Coordinator` delegate back to `document.text` → `TabManager.activeTab.text`, marking the tab dirty (`isDirty = true`).
 7. **Saving** writes `document.text` to `sidebarFileURL`; the `onFileSaved` callback clears the tab's dirty flag.
-8. **Git info** is fetched asynchronously via `Process` inside each `DocumentPaneView` and displayed by its `PathBarView`.
-9. **Git working-tree status** is fetched asynchronously in folder mode and shared across the sidebar decorations and the Git Changes window; selection changes reuse the current snapshot, while filesystem/reactivation refreshes are debounced.
+8. **Git info** is fetched asynchronously via `Process` for the active `DocumentPaneView` and displayed by its `PathBarView`.
+9. **Git working-tree status** is fetched asynchronously in folder mode and shared across the sidebar decorations and the Git Changes window; selection changes reuse the current snapshot, while filesystem/reactivation refreshes are debounced, rate-limited, and coalesced to one in-flight git subprocess.
 10. **File tree updates** are triggered by recursive `FSEventStream` events, which rebuild the `FileTreeModel.rootNode` tree and refresh its URL-indexed lookup caches.
 11. **Utility panels** (`Git Changes`, `Find in Files`) restore their autosaved frames when usable, but reset to safe defaults if a stale saved size is too small.
 

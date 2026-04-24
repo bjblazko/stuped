@@ -5,6 +5,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
     let text: String
     let previewType: PreviewType
     var fileURL: URL?
+    var isActive: Bool = true
     var scrollPosition: CGPoint = .zero
     var onScrollPositionChanged: ((CGPoint) -> Void)? = nil
 
@@ -37,6 +38,8 @@ struct MarkdownPreviewView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.parent = self
+        let wasActive = context.coordinator.currentIsActive
+        context.coordinator.currentIsActive = isActive
         if context.coordinator.previewType != previewType || context.coordinator.currentBaseURL != baseURL {
             // File moved to a different directory or preview type — full page reload needed.
             context.coordinator.previewType = previewType
@@ -51,9 +54,17 @@ struct MarkdownPreviewView: NSViewRepresentable {
         if context.coordinator.currentText != text {
             context.coordinator.currentText = text
             context.coordinator.pendingText = text
-            context.coordinator.scheduleRender()
+            if isActive {
+                context.coordinator.scheduleRender()
+            }
         }
-        context.coordinator.restoreScrollPositionIfNeeded()
+        if isActive {
+            if !wasActive, context.coordinator.pendingText != nil {
+                context.coordinator.scheduleRender()
+            } else {
+                context.coordinator.restoreScrollPositionIfNeeded()
+            }
+        }
     }
 
     // MARK: - HTML Builder
@@ -257,6 +268,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
         private var renderWorkItem: DispatchWorkItem?
         var pageLoaded = false
         private var lastRestoredScrollPosition: CGPoint?
+        var currentIsActive: Bool
 
         let schemeHandler = PreviewURLSchemeHandler()
         private let tempStore = PreviewTempStore()
@@ -265,6 +277,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
             self.parent = parent
             self.currentText = parent.text
             self.previewType = parent.previewType
+            self.currentIsActive = parent.isActive
         }
 
         deinit {
@@ -297,8 +310,10 @@ struct MarkdownPreviewView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             pageLoaded = true
-            restoreScrollPosition()
-            if pendingText != nil {
+            if currentIsActive {
+                restoreScrollPosition()
+            }
+            if currentIsActive, pendingText != nil {
                 scheduleRender()
             }
         }
@@ -314,6 +329,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
         }
 
         func scheduleRender() {
+            guard currentIsActive else { return }
             renderWorkItem?.cancel()
             let workItem = DispatchWorkItem { [weak self] in
                 self?.executeRender()
@@ -344,6 +360,7 @@ struct MarkdownPreviewView: NSViewRepresentable {
         }
 
         func restoreScrollPositionIfNeeded() {
+            guard currentIsActive else { return }
             guard lastRestoredScrollPosition != parent.scrollPosition else { return }
             restoreScrollPosition()
         }

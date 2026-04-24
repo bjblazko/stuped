@@ -2,6 +2,12 @@ import AppKit
 import SwiftUI
 
 struct ContentView: View {
+    private struct GitStatusRefreshRequest {
+        let targetURL: URL
+        let debounceNanoseconds: UInt64
+        let minimumIntervalNanoseconds: UInt64
+    }
+
     @Binding var document: StupedDocument
     var fileURL: URL?
 
@@ -9,7 +15,12 @@ struct ContentView: View {
     @State private var treeModel = FileTreeModel()
     @State private var sidebarFileURL: URL?
     @State private var gitStatusSnapshot: GitWorkingTreeStatusSnapshot?
-    @State private var gitStatusRefreshTask: Task<Void, Never>?
+    @State private var cachedGitRepoRootURL: URL?
+    @State private var gitStatusRefreshScheduleTask: Task<Void, Never>?
+    @State private var gitStatusFetchTask: Task<Void, Never>?
+    @State private var gitStatusRefreshInFlight = false
+    @State private var pendingGitStatusRefreshRequest: GitStatusRefreshRequest?
+    @State private var lastGitStatusRefreshStartDate: Date?
     @State private var columnVisibility: NavigationSplitViewVisibility
     @AppStorage("editor.wordWrap") private var wordWrap: Bool = false
     @AppStorage("editor.showMiniMap") private var showMiniMap: Bool = true
@@ -161,7 +172,8 @@ struct ContentView: View {
             }
         }
         .onDisappear {
-            gitStatusRefreshTask?.cancel()
+            gitStatusRefreshScheduleTask?.cancel()
+            gitStatusFetchTask?.cancel()
             if isFolderMode {
                 GitChangesWindowManager.shared.close()
             }
@@ -170,6 +182,7 @@ struct ContentView: View {
             if isFolderMode, let url = notification.userInfo?["url"] as? URL {
                 treeModel.loadDirectory(at: url)
                 sidebarFileURL = nil
+                invalidateGitRepositoryCache()
                 refreshGitWorkingTreeStatus(using: url)
             }
         }
@@ -177,15 +190,19 @@ struct ContentView: View {
             if isFolderMode {
                 FolderBrowserState.shared.treeRootURL = newURL
                 syncFolderBrowserTreeSelection()
+                invalidateGitRepositoryCache()
                 refreshGitWorkingTreeStatus(using: newURL)
             }
         }
         .onChange(of: treeModel.selectedItemURL) { _, _ in
             syncFolderBrowserTreeSelection()
         }
-        .onChange(of: treeModel.filesystemChangeCount) { _, _ in
+        .onChange(of: treeModel.gitRelevantChangeCount) { _, _ in
             if isFolderMode {
-                refreshGitWorkingTreeStatus(debounceNanoseconds: 300_000_000)
+                refreshGitWorkingTreeStatus(
+                    debounceNanoseconds: 750_000_000,
+                    minimumIntervalNanoseconds: 3_000_000_000
+                )
             }
         }
         .onChange(of: showHiddenFiles, initial: true) { _, newValue in
@@ -504,48 +521,145 @@ struct ContentView: View {
 
     private func refreshGitWorkingTreeStatus(
         using explicitURL: URL? = nil,
-        debounceNanoseconds: UInt64 = 0
+        debounceNanoseconds: UInt64 = 0,
+        minimumIntervalNanoseconds: UInt64 = 0
     ) {
         guard isFolderMode else { return }
 
         let targetURL = explicitURL ?? gitStatusContextURL
-        gitStatusRefreshTask?.cancel()
+        gitStatusRefreshScheduleTask?.cancel()
+        if explicitURL != nil {
+            gitStatusFetchTask?.cancel()
+        }
 
         guard let targetURL else {
+            gitStatusFetchTask?.cancel()
             gitStatusSnapshot = nil
+            cachedGitRepoRootURL = nil
+            pendingGitStatusRefreshRequest = nil
+            gitStatusRefreshInFlight = false
+            gitStatusRefreshScheduleTask = nil
             return
         }
 
-        gitStatusRefreshTask = Task {
-            if debounceNanoseconds > 0 {
-                do {
-                    try await Task.sleep(nanoseconds: debounceNanoseconds)
-                } catch {
-                    return
-                }
-            }
-
-            let snapshot = await GitWorkingTreeStatus.fetch(for: targetURL)
-            guard !Task.isCancelled else { return }
-
-            await MainActor.run {
-                gitStatusSnapshot = snapshot
-            }
-        }
+        enqueueGitStatusRefresh(
+            GitStatusRefreshRequest(
+                targetURL: targetURL,
+                debounceNanoseconds: debounceNanoseconds,
+                minimumIntervalNanoseconds: minimumIntervalNanoseconds
+            )
+        )
     }
 
     private func showGitChangesPanel() {
         guard isFolderMode, let targetURL = gitStatusContextURL else { return }
 
         Task {
-            let snapshot = await GitWorkingTreeStatus.fetch(for: targetURL)
+            let snapshot: GitWorkingTreeStatusSnapshot?
+            if let cachedGitRepoRootURL {
+                snapshot = await GitWorkingTreeStatus.fetch(inRepoRoot: cachedGitRepoRootURL)
+            } else {
+                snapshot = await GitWorkingTreeStatus.fetch(for: targetURL)
+            }
             await MainActor.run {
                 gitStatusSnapshot = snapshot
+                cachedGitRepoRootURL = snapshot?.repoRoot
                 guard let snapshot else { return }
                 GitChangesWindowManager.shared.open(snapshot: snapshot) { change in
                     handleGitChangeSelection(change)
                 }
             }
+        }
+    }
+
+    private func invalidateGitRepositoryCache() {
+        cachedGitRepoRootURL = nil
+    }
+
+    private func enqueueGitStatusRefresh(_ request: GitStatusRefreshRequest) {
+        if gitStatusRefreshInFlight {
+            pendingGitStatusRefreshRequest = request
+            return
+        }
+
+        let delayNanoseconds = max(
+            request.debounceNanoseconds,
+            remainingGitStatusThrottle(for: request.minimumIntervalNanoseconds)
+        )
+
+        gitStatusRefreshScheduleTask = Task {
+            if delayNanoseconds > 0 {
+                do {
+                    try await Task.sleep(nanoseconds: delayNanoseconds)
+                } catch {
+                    return
+                }
+            }
+
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                startGitStatusRefresh(request)
+            }
+        }
+    }
+
+    private func remainingGitStatusThrottle(for minimumIntervalNanoseconds: UInt64) -> UInt64 {
+        guard minimumIntervalNanoseconds > 0,
+              let lastGitStatusRefreshStartDate else {
+            return 0
+        }
+
+        let elapsedNanoseconds = UInt64(max(0, Date().timeIntervalSince(lastGitStatusRefreshStartDate)) * 1_000_000_000)
+        guard elapsedNanoseconds < minimumIntervalNanoseconds else {
+            return 0
+        }
+
+        return minimumIntervalNanoseconds - elapsedNanoseconds
+    }
+
+    private func startGitStatusRefresh(_ request: GitStatusRefreshRequest) {
+        guard isFolderMode else { return }
+
+        if gitStatusRefreshInFlight {
+            pendingGitStatusRefreshRequest = request
+            return
+        }
+
+        gitStatusRefreshScheduleTask = nil
+        gitStatusRefreshInFlight = true
+        lastGitStatusRefreshStartDate = Date()
+        let cachedRepoRootURL = cachedGitRepoRootURL
+
+        gitStatusFetchTask = Task {
+            let snapshot: GitWorkingTreeStatusSnapshot?
+            if let cachedRepoRootURL {
+                snapshot = await GitWorkingTreeStatus.fetch(inRepoRoot: cachedRepoRootURL)
+            } else {
+                snapshot = await GitWorkingTreeStatus.fetch(for: request.targetURL)
+            }
+
+            let wasCancelled = Task.isCancelled
+            await MainActor.run {
+                completeGitStatusRefresh(snapshot: snapshot, applySnapshot: !wasCancelled)
+            }
+        }
+    }
+
+    private func completeGitStatusRefresh(
+        snapshot: GitWorkingTreeStatusSnapshot?,
+        applySnapshot: Bool
+    ) {
+        if applySnapshot {
+            gitStatusSnapshot = snapshot
+            cachedGitRepoRootURL = snapshot?.repoRoot
+        }
+
+        gitStatusFetchTask = nil
+        gitStatusRefreshInFlight = false
+
+        if let pendingGitStatusRefreshRequest {
+            self.pendingGitStatusRefreshRequest = nil
+            enqueueGitStatusRefresh(pendingGitStatusRefreshRequest)
         }
     }
 

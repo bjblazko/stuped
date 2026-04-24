@@ -97,7 +97,7 @@ Deleted files remain in the snapshot even though they no longer exist on disk.
 ### DocumentPaneView + PathBarView
 
 - `DocumentPaneView` still fetches `GitInfo` per active file for branch display.
-- `PathBarView` shows the branch badge and tooltip in all modes.
+- `PathBarView` shows the branch badge and tooltip only for the active pane.
 - In **folder mode**, `PathBarView` also receives `onShowGitChanges`, making the branch badge clickable.
 
 ### ContentView
@@ -109,10 +109,14 @@ Refresh triggers:
 - `.onAppear`
 - `.stupedFolderOpened`
 - tree-root changes
-- debounced `FileTreeModel.filesystemChangeCount` updates from FSEvents
+- debounced and rate-limited `FileTreeModel.gitRelevantChangeCount` updates from FSEvents
 - debounced `NSApplication.didBecomeActiveNotification` to catch index-only git operations such as `git add`
 
 Active file / sidebar selection changes reuse the existing repo snapshot instead of immediately refetching `git status`, which reduces repo-wide refresh churn while browsing files inside the same tree.
+
+`ContentView` also caches the resolved repository root after the first successful status fetch and reuses `GitWorkingTreeStatus.fetch(inRepoRoot:)` for later refreshes and the Git Changes panel, avoiding repeated `git rev-parse --show-toplevel` calls during idle refresh bursts.
+
+Filesystem-triggered refreshes are serialized through one in-flight queue. If more events arrive while a `git status` fetch is already running, Stuped keeps only the latest pending request instead of spawning overlapping subprocesses.
 
 ### FileTreeSidebar
 
@@ -138,4 +142,4 @@ Active file / sidebar selection changes reuse the existing repo snapshot instead
 
 Both `GitInfo.fetch(for:)` and `GitWorkingTreeStatus.fetch(for:)` are `async` wrappers around blocking subprocess calls. Callers launch them in `Task`s and publish results back on `MainActor`.
 
-`ContentView` cancels any in-flight working-tree refresh before scheduling the next one and applies a short debounce for file-system and app-reactivation driven refreshes.
+`ContentView` cancels any in-flight working-tree refresh before scheduling the next one, caches the repo root for repeated refreshes, and applies a short debounce for file-system and app-reactivation driven refreshes.

@@ -34,5 +34,5 @@ Specifically:
 ### Negative
 
 - Memory usage grows with the number of open tabs because inactive panes remain mounted.
-- Hidden `WKWebView` and `NSTextView` instances still exist, so future optimization may be needed if very large tab counts become common.
+- Hidden `WKWebView` and `NSTextView` instances still exist, but heavyweight inactive work is now suspended where practical (preview JS renders, syntax highlighting, mini-map/gutter redraws, scroll restore, path-bar/status-bar chrome, and per-pane git metadata refresh).
 - View-mode changes inside a pane can still remount the editor or preview subtree, so pane-local viewport retention remains useful there.

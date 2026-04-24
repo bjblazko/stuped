@@ -82,14 +82,36 @@ class FileTreeModel {
     var pendingCreation: PendingFileTreeCreation?
     var revealTargetURL: URL?
     var revealRequestID = 0
-    var filesystemChangeCount = 0
+    var gitRelevantChangeCount = 0
 
     private var eventStream: FSEventStreamRef?
+    private var scheduledFilesystemRebuild: DispatchWorkItem?
     private let resourceKeys: Set<URLResourceKey> = [.isDirectoryKey, .nameKey, .isHiddenKey]
     private var nodesByURL: [URL: FileNode] = [:]
     private var childrenByDirectoryURL: [URL: [FileNode]] = [:]
+    private let filesystemDrivenRebuildDelay: TimeInterval = 0.5
+    private let eventFlagRootChanged = FSEventStreamEventFlags(kFSEventStreamEventFlagRootChanged)
+    private let eventFlagItemCreated = FSEventStreamEventFlags(kFSEventStreamEventFlagItemCreated)
+    private let eventFlagItemRemoved = FSEventStreamEventFlags(kFSEventStreamEventFlagItemRemoved)
+    private let eventFlagItemRenamed = FSEventStreamEventFlags(kFSEventStreamEventFlagItemRenamed)
+    private let eventFlagItemModified = FSEventStreamEventFlags(kFSEventStreamEventFlagItemModified)
+    private let eventFlagItemInodeMetaMod = FSEventStreamEventFlags(kFSEventStreamEventFlagItemInodeMetaMod)
+    private let eventFlagItemXattrMod = FSEventStreamEventFlags(kFSEventStreamEventFlagItemXattrMod)
+    private let eventFlagMustScanSubDirs = FSEventStreamEventFlags(kFSEventStreamEventFlagMustScanSubDirs)
+    private let eventFlagUserDropped = FSEventStreamEventFlags(kFSEventStreamEventFlagUserDropped)
+    private let eventFlagKernelDropped = FSEventStreamEventFlags(kFSEventStreamEventFlagKernelDropped)
+    private let eventFlagItemIsDir = FSEventStreamEventFlags(kFSEventStreamEventFlagItemIsDir)
+    private let eventFlagOwnEvent = FSEventStreamEventFlags(kFSEventStreamEventFlagOwnEvent)
+    private static let watcherTraceURL: URL? = {
+        let value = ProcessInfo.processInfo.environment["STUPED_FSEVENT_TRACE"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !value.isEmpty else { return nil }
+        return URL(fileURLWithPath: value)
+    }()
+    private var watcherTraceInitialized = false
 
     deinit {
+        scheduledFilesystemRebuild?.cancel()
         stopWatching()
     }
 
@@ -100,6 +122,9 @@ class FileTreeModel {
         self.selectedItemURL = nil
         self.pendingCreation = nil
         self.revealTargetURL = nil
+        self.scheduledFilesystemRebuild?.cancel()
+        self.scheduledFilesystemRebuild = nil
+        self.watcherTraceInitialized = false
         rebuildTree()
         startWatching(url: normalizedURL)
     }
@@ -410,6 +435,176 @@ class FileTreeModel {
         (try? url.standardizedFileURL.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
     }
 
+    private func fileSystemEventDecision(
+        for changedURL: URL,
+        flags: FSEventStreamEventFlags
+    ) -> (rebuildTree: Bool, refreshGit: Bool) {
+        guard let rootURL else { return (false, false) }
+
+        let normalizedChangedURL = changedURL.standardizedFileURL
+        let rootPath = rootURL.path
+        let changedPath = normalizedChangedURL.path
+        guard changedPath == rootPath || changedPath.hasPrefix(rootPath + "/") else {
+            return (false, false)
+        }
+
+        return (
+            rebuildTree: shouldRebuildTree(for: normalizedChangedURL, flags: flags, rootURL: rootURL),
+            refreshGit: shouldRefreshGit(for: normalizedChangedURL, flags: flags, rootURL: rootURL)
+        )
+    }
+
+    private func shouldRebuildTree(
+        for changedURL: URL,
+        flags: FSEventStreamEventFlags,
+        rootURL: URL
+    ) -> Bool {
+        if hasFlag(flags, eventFlagRootChanged) {
+            return true
+        }
+        guard isStructuralEvent(flags) else { return false }
+        guard showHiddenFiles || !containsHiddenComponent(in: changedURL, relativeTo: rootURL) else {
+            return false
+        }
+        if changedURL == rootURL {
+            return true
+        }
+
+        let parentURL = changedURL.deletingLastPathComponent().standardizedFileURL
+        return expandedURLs.contains(parentURL)
+    }
+
+    private func shouldRefreshGit(
+        for changedURL: URL,
+        flags: FSEventStreamEventFlags,
+        rootURL: URL
+    ) -> Bool {
+        if isRelevantGitMetadataChange(for: changedURL, relativeTo: rootURL) {
+            return true
+        }
+
+        return isStructuralEvent(flags)
+            || hasFlag(flags, eventFlagItemModified)
+            || hasFlag(flags, eventFlagItemInodeMetaMod)
+            || hasFlag(flags, eventFlagItemXattrMod)
+    }
+
+    private func isStructuralEvent(_ flags: FSEventStreamEventFlags) -> Bool {
+        hasFlag(flags, eventFlagItemCreated)
+            || hasFlag(flags, eventFlagItemRemoved)
+            || hasFlag(flags, eventFlagItemRenamed)
+            || hasFlag(flags, eventFlagRootChanged)
+    }
+
+    private func hasFlag(_ flags: FSEventStreamEventFlags, _ flag: FSEventStreamEventFlags) -> Bool {
+        (flags & flag) != 0
+    }
+
+    private func containsHiddenComponent(in url: URL, relativeTo rootURL: URL) -> Bool {
+        guard let relativeComponents = relativePathComponents(for: url, relativeTo: rootURL) else {
+            return false
+        }
+        return relativeComponents.contains { component in
+            component.hasPrefix(".") && component != "." && component != ".."
+        }
+    }
+
+    private func isRelevantGitMetadataChange(for url: URL, relativeTo rootURL: URL) -> Bool {
+        guard let relativeComponents = relativePathComponents(for: url, relativeTo: rootURL),
+              let gitIndex = relativeComponents.firstIndex(of: ".git") else {
+            return false
+        }
+
+        let tail = Array(relativeComponents.dropFirst(gitIndex + 1))
+        guard let first = tail.first else { return true }
+        if first == "HEAD" || first == "index" || first == "packed-refs" {
+            return true
+        }
+        return first == "refs"
+    }
+
+    private func relativePathComponents(for url: URL, relativeTo rootURL: URL) -> [String]? {
+        let rootComponents = rootURL.standardizedFileURL.pathComponents
+        let urlComponents = url.standardizedFileURL.pathComponents
+        guard urlComponents.count >= rootComponents.count else { return nil }
+        return Array(urlComponents.dropFirst(rootComponents.count))
+    }
+
+    private func scheduleFilesystemDrivenRebuild() {
+        scheduledFilesystemRebuild?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.scheduledFilesystemRebuild = nil
+            self.rebuildTree()
+        }
+
+        scheduledFilesystemRebuild = workItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + filesystemDrivenRebuildDelay,
+            execute: workItem
+        )
+    }
+
+    private func traceWatcherEvent(
+        path: String,
+        flags: FSEventStreamEventFlags,
+        decision: (rebuildTree: Bool, refreshGit: Bool)
+    ) {
+        guard let traceURL = Self.watcherTraceURL,
+              decision.rebuildTree || decision.refreshGit else { return }
+
+        if !watcherTraceInitialized {
+            FileManager.default.createFile(atPath: traceURL.path, contents: nil)
+            watcherTraceInitialized = true
+        }
+
+        let line = [
+            Date().ISO8601Format(),
+            "path=\(path)",
+            "flags=\(formattedEventFlags(flags))",
+            "rebuild=\(decision.rebuildTree)",
+            "git=\(decision.refreshGit)"
+        ].joined(separator: " ")
+
+        guard let data = (line + "\n").data(using: .utf8),
+              let handle = try? FileHandle(forWritingTo: traceURL) else { return }
+
+        defer {
+            try? handle.close()
+        }
+
+        do {
+            try handle.seekToEnd()
+            try handle.write(contentsOf: data)
+        } catch {
+            return
+        }
+    }
+
+    private func formattedEventFlags(_ flags: FSEventStreamEventFlags) -> String {
+        var names: [String] = []
+
+        if hasFlag(flags, eventFlagRootChanged) { names.append("rootChanged") }
+        if hasFlag(flags, eventFlagItemCreated) { names.append("created") }
+        if hasFlag(flags, eventFlagItemRemoved) { names.append("removed") }
+        if hasFlag(flags, eventFlagItemRenamed) { names.append("renamed") }
+        if hasFlag(flags, eventFlagItemModified) { names.append("modified") }
+        if hasFlag(flags, eventFlagItemInodeMetaMod) { names.append("inodeMeta") }
+        if hasFlag(flags, eventFlagItemXattrMod) { names.append("xattr") }
+        if hasFlag(flags, eventFlagMustScanSubDirs) { names.append("mustScanSubDirs") }
+        if hasFlag(flags, eventFlagUserDropped) { names.append("userDropped") }
+        if hasFlag(flags, eventFlagKernelDropped) { names.append("kernelDropped") }
+        if hasFlag(flags, eventFlagItemIsDir) { names.append("isDir") }
+        if hasFlag(flags, eventFlagOwnEvent) { names.append("ownEvent") }
+
+        if names.isEmpty {
+            return String(format: "0x%08llx", UInt64(flags))
+        }
+
+        return names.joined(separator: ",")
+    }
+
     // MARK: - File Watching
 
     private func startWatching(url: URL) {
@@ -422,33 +617,38 @@ class FileTreeModel {
         )
 
         // FSEvents callback
-        let callback: FSEventStreamCallback = { _, info, numEvents, eventPaths, _, _ in
-            guard let info = info else { return }
+        let callback: FSEventStreamCallback = { _, info, numEvents, eventPaths, eventFlags, _ in
+            guard let info else { return }
             let model = Unmanaged<FileTreeModel>.fromOpaque(info).takeUnretainedValue()
-            
-            // Only rebuild if any of the changed paths are inside an expanded folder
-            // or if the change is to the expanded folder list itself.
-            // For simplicity and to avoid missing updates, we rebuild if any expanded path
-            // is a prefix of a changed path.
             let paths = Unmanaged<CFArray>.fromOpaque(eventPaths).takeUnretainedValue() as! [String]
-            
-            var shouldRebuild = false
-            for path in paths {
-                let changedURL = URL(fileURLWithPath: path)
-                // If any expanded directory is an ancestor of the change, we need to refresh
-                if model.expandedURLs.contains(where: { expanded in
-                    changedURL.path.hasPrefix(expanded.path)
-                }) {
-                    shouldRebuild = true
+            let flagsBuffer = UnsafeBufferPointer(start: eventFlags, count: Int(numEvents))
+
+            var shouldRebuildTree = false
+            var shouldRefreshGit = false
+
+            for index in 0..<min(paths.count, flagsBuffer.count) {
+                let decision = model.fileSystemEventDecision(
+                    for: URL(fileURLWithPath: paths[index]),
+                    flags: flagsBuffer[index]
+                )
+                model.traceWatcherEvent(
+                    path: paths[index],
+                    flags: flagsBuffer[index],
+                    decision: decision
+                )
+                shouldRebuildTree = shouldRebuildTree || decision.rebuildTree
+                shouldRefreshGit = shouldRefreshGit || decision.refreshGit
+                if shouldRebuildTree && shouldRefreshGit {
                     break
                 }
             }
-            
-            if shouldRebuild {
-                DispatchQueue.main.async {
-                    model.filesystemChangeCount += 1
-                    model.rebuildTree()
-                }
+
+            guard shouldRebuildTree || shouldRefreshGit else { return }
+            if shouldRefreshGit {
+                model.gitRelevantChangeCount += 1
+            }
+            if shouldRebuildTree {
+                model.scheduleFilesystemDrivenRebuild()
             }
         }
 
@@ -469,6 +669,8 @@ class FileTreeModel {
     }
 
     private func stopWatching() {
+        scheduledFilesystemRebuild?.cancel()
+        scheduledFilesystemRebuild = nil
         guard let stream = eventStream else { return }
         FSEventStreamStop(stream)
         FSEventStreamInvalidate(stream)

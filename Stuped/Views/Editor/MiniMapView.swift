@@ -5,6 +5,7 @@ final class MiniMapView: NSView {
 
     weak var textView: NSTextView?
     weak var scrollView: NSScrollView?
+    private var isPaused = false
 
     override var isFlipped: Bool { true }
 
@@ -21,7 +22,14 @@ final class MiniMapView: NSView {
         )
     }
 
+    func setPaused(_ paused: Bool) {
+        guard isPaused != paused else { return }
+        isPaused = paused
+        needsDisplay = true
+    }
+
     @objc func contentChanged() {
+        guard !isPaused else { return }
         needsDisplay = true
     }
 
@@ -43,6 +51,8 @@ final class MiniMapView: NSView {
         ctx.move(to: CGPoint(x: 0.25, y: 0))
         ctx.addLine(to: CGPoint(x: 0.25, y: bounds.height))
         ctx.strokePath()
+
+        guard !isPaused else { return }
 
         let string = textView.string as NSString
         let totalTextHeight = max(textView.frame.height, 1)

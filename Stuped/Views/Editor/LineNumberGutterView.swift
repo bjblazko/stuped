@@ -3,6 +3,7 @@ import AppKit
 final class LineNumberGutterView: NSView {
     weak var textView: NSTextView?
     var gutterWidth: CGFloat = 44
+    private var isPaused = false
 
     override var isFlipped: Bool { true }
 
@@ -22,7 +23,14 @@ final class LineNumberGutterView: NSView {
         }
     }
 
+    func setPaused(_ paused: Bool) {
+        guard isPaused != paused else { return }
+        isPaused = paused
+        needsDisplay = true
+    }
+
     @objc private func needsRedraw() {
+        guard !isPaused else { return }
         needsDisplay = true
     }
 
@@ -43,6 +51,8 @@ final class LineNumberGutterView: NSView {
         sep.line(to: NSPoint(x: bounds.maxX - 0.5, y: bounds.maxY))
         sep.lineWidth = 0.5
         sep.stroke()
+
+        guard !isPaused else { return }
 
         let string = textView.string as NSString
         guard string.length > 0 else { return }

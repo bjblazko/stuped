@@ -80,9 +80,9 @@ graph LR
 |------|----------|
 | Native feel | SwiftUI for layout; AppKit NSTextView for editing; retain one document pane per open tab and expose Finder-style toolbar history controls in folder mode |
 | Rich preview | WKWebView with bundled markdown-it + mermaid.js, staging generated preview HTML under the user's temp directory and serving relative assets through a custom URL scheme |
-| Responsiveness | Debounced highlighting (150ms) and preview (300ms); cached file-tree lookup maps keep large expanded sidebars from repeatedly walking the tree during render |
-| File awareness | `FSEventStream` for recursive file-tree watching; kqueue/`DispatchSourceFileSystemObject` for individual open-file reloads |
-| Git context | Shell out to git CLI asynchronously for branch metadata and working-tree status snapshots, with cancellation/debounce around folder-mode refresh bursts |
+| Responsiveness | Debounced highlighting (150ms) and preview (300ms); cached file-tree lookup maps keep large expanded sidebars from repeatedly walking the tree during render; filesystem-driven sidebar rebuilds are coalesced before `rebuildTree()` runs; inactive retained tabs defer heavyweight editor and preview work until reactivated and drop nonessential path/status chrome while hidden |
+| File awareness | `FSEventStream` for recursive file-tree watching, filtered so only visible structural changes rebuild the sidebar; kqueue/`DispatchSourceFileSystemObject` for individual open-file reloads |
+| Git context | Shell out to git CLI asynchronously for branch metadata and working-tree status snapshots, with cached repo-root reuse plus serialized, debounced, and rate-limited folder-mode refreshes so filesystem bursts do not fan out into overlapping `git status` subprocesses |
 | Minimal footprint | One external Swift dependency; JS libs bundled as resources |
 
 ## 5. Building Block View

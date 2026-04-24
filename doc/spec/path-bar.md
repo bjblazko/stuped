@@ -6,6 +6,8 @@
 
 A horizontal bar above the editor showing the full file path as clickable breadcrumb components, plus the git branch name. In folder mode, Finder-style Back / Forward controls live in the native window toolbar, while the path bar exposes breadcrumb navigation and one entry point to the Git Changes window. The same panel is also available from **View > Git Changes**.
 
+Only the active retained tab pane keeps its `PathBarView` mounted. Inactive panes preserve editor/preview state but drop path-bar chrome until reactivated.
+
 ## Parameters
 
 | Parameter | Type | Description |
