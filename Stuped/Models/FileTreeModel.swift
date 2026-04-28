@@ -605,6 +605,8 @@ class FileTreeModel {
         return names.joined(separator: ",")
     }
 
+    private var watcherQueue = DispatchQueue(label: "com.stuped.file-watching", qos: .utility)
+
     // MARK: - File Watching
 
     private func startWatching(url: URL) {
@@ -644,11 +646,14 @@ class FileTreeModel {
             }
 
             guard shouldRebuildTree || shouldRefreshGit else { return }
-            if shouldRefreshGit {
-                model.gitRelevantChangeCount += 1
-            }
-            if shouldRebuildTree {
-                model.scheduleFilesystemDrivenRebuild()
+            
+            DispatchQueue.main.async {
+                if shouldRefreshGit {
+                    model.gitRelevantChangeCount += 1
+                }
+                if shouldRebuildTree {
+                    model.scheduleFilesystemDrivenRebuild()
+                }
             }
         }
 
@@ -663,7 +668,7 @@ class FileTreeModel {
             FSEventStreamCreateFlags(kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagFileEvents)
         ) else { return }
 
-        FSEventStreamSetDispatchQueue(stream, .main)
+        FSEventStreamSetDispatchQueue(stream, watcherQueue)
         FSEventStreamStart(stream)
         eventStream = stream
     }

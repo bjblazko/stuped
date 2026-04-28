@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-04-28
+
+### Fixed
+
+- Eliminated high idle CPU usage by offloading file-tree `FSEventStream` processing to a background utility queue, preventing main-thread saturation.
+- Aggressively suspended high-frequency UI tasks (syntax highlighting, mini-map, Markdown preview rendering) when the application is inactive.
+- Coalesced Git status refreshes across all open tabs, and tied status refreshes to application lifecycle state to avoid background work while idle.
+- Reduced SwiftUI layout thrashing by optimizing `PathBarView` and `FileTreeSidebar` components with `Equatable` conformance and explicit toolbar isolation.
+
 ## [0.6.3] - 2026-04-24
 
 ### Fixed

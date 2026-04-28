@@ -42,6 +42,7 @@ struct DocumentPaneView: View {
                         viewModePicker
                     }
                 }
+                .equatable()
             }
 
             editorArea

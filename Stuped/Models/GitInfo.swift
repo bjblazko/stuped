@@ -1,6 +1,6 @@
 import Foundation
 
-struct GitInfo {
+struct GitInfo: Equatable {
     let branchName: String
     let remoteURL: String?
     let repoRoot: URL

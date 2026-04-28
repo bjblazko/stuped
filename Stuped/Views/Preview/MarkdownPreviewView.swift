@@ -39,7 +39,8 @@ struct MarkdownPreviewView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.parent = self
         let wasActive = context.coordinator.currentIsActive
-        context.coordinator.currentIsActive = isActive
+        context.coordinator.setPaused(!isActive)
+        
         if context.coordinator.previewType != previewType || context.coordinator.currentBaseURL != baseURL {
             // File moved to a different directory or preview type — full page reload needed.
             context.coordinator.previewType = previewType
@@ -326,6 +327,15 @@ struct MarkdownPreviewView: NSViewRepresentable {
             let position = CGPoint(x: x, y: y)
             lastRestoredScrollPosition = position
             parent.onScrollPositionChanged?(position)
+        }
+
+        func setPaused(_ paused: Bool) {
+            currentIsActive = !paused
+            if paused {
+                renderWorkItem?.cancel()
+            } else if pendingText != nil {
+                scheduleRender()
+            }
         }
 
         func scheduleRender() {

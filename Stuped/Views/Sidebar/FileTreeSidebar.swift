@@ -50,6 +50,40 @@ struct FileTreeSidebar: View {
     }
 }
 
+private struct FileNodeRow: View, Equatable {
+    let node: FileNode
+    let isSelected: Bool
+    let changeKind: GitWorkingTreeChangeKind?
+    let onCreateItem: (FileTreeCreationKind) -> Void
+    let onCommitCreation: () -> Void
+    let canCreateInSelectedDirectory: Bool
+    let projectRootURL: URL?
+
+    static func == (lhs: FileNodeRow, rhs: FileNodeRow) -> Bool {
+        lhs.node.id == rhs.node.id &&
+        lhs.isSelected == rhs.isSelected &&
+        lhs.changeKind == rhs.changeKind
+    }
+
+    var body: some View {
+        Label {
+            Text(node.name)
+                .foregroundStyle(isSelected ? Color(nsColor: .selectedTextColor) : (changeKind != nil && !node.isDirectory ? changeKind!.tintColor : .primary))
+        } icon: {
+            FileTreeNodeIcon(node: node, changeKind: changeKind)
+        }
+        .contentShape(Rectangle())
+        .contextMenu {
+            CopyPathMenu(url: node.url, projectRootURL: projectRootURL)
+            Divider()
+            Button(FileTreeCreationKind.file.menuTitle) { onCreateItem(.file) }
+                .disabled(!canCreateInSelectedDirectory)
+            Button(FileTreeCreationKind.folder.menuTitle) { onCreateItem(.folder) }
+                .disabled(!canCreateInSelectedDirectory)
+        }
+    }
+}
+
 private struct FileTreeRows: View {
     let nodes: [FileNode]
     @Bindable var model: FileTreeModel
@@ -67,9 +101,7 @@ private struct FileTreeRows: View {
                 DisclosureGroup(
                     isExpanded: Binding(
                         get: { model.expandedURLs.contains(node.url) },
-                        set: { isExpanded in
-                            model.setExpansion(for: node.url, isExpanded: isExpanded)
-                        }
+                        set: { isExpanded in model.setExpansion(for: node.url, isExpanded: isExpanded) }
                     )
                 ) {
                     if let children = model.childrenForDirectory(at: node.url) {
@@ -89,15 +121,29 @@ private struct FileTreeRows: View {
                         ProgressView().controlSize(.small).padding(.leading)
                     }
                 } label: {
-                    nodeLabel(node)
+                    FileNodeRow(
+                        node: node,
+                        isSelected: selectedItemURL == node.url,
+                        changeKind: nil,
+                        onCreateItem: onCreateItem,
+                        onCommitCreation: onCommitCreation,
+                        canCreateInSelectedDirectory: canCreateInSelectedDirectory,
+                        projectRootURL: projectRootURL
+                    )
                 }
-                .simultaneousGesture(TapGesture().onEnded {
-                    model.selectItem(node.url)
-                })
+                .simultaneousGesture(TapGesture().onEnded { model.selectItem(node.url) })
                 .listRowBackground(rowBackground(for: node))
                 .id(node.url)
             } else {
-                nodeLabel(node)
+                FileNodeRow(
+                    node: node,
+                    isSelected: selectedItemURL == node.url,
+                    changeKind: gitStatusSnapshot?.changeKind(for: node.url),
+                    onCreateItem: onCreateItem,
+                    onCommitCreation: onCommitCreation,
+                    canCreateInSelectedDirectory: canCreateInSelectedDirectory,
+                    projectRootURL: projectRootURL
+                )
                     .contentShape(Rectangle())
                     .onTapGesture {
                         model.selectItem(node.url)
@@ -106,32 +152,6 @@ private struct FileTreeRows: View {
                     .listRowBackground(rowBackground(for: node))
                     .id(node.url)
             }
-        }
-    }
-
-    private func nodeLabel(_ node: FileNode) -> some View {
-        let changeKind = gitChangeKind(for: node)
-        let isSelected = selectedItemURL == node.url
-
-        return Label {
-            Text(node.name)
-                .foregroundStyle(titleColor(for: node, changeKind: changeKind, isSelected: isSelected))
-        } icon: {
-            FileTreeNodeIcon(node: node, changeKind: changeKind)
-        }
-        .contentShape(Rectangle())
-        .contextMenu {
-            CopyPathMenu(url: node.url, projectRootURL: projectRootURL)
-            Divider()
-            Button(FileTreeCreationKind.file.menuTitle) {
-                onCreateItem(.file)
-            }
-            .disabled(!canCreateInSelectedDirectory)
-
-            Button(FileTreeCreationKind.folder.menuTitle) {
-                onCreateItem(.folder)
-            }
-            .disabled(!canCreateInSelectedDirectory)
         }
     }
 

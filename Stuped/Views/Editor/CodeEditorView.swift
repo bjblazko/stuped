@@ -255,8 +255,7 @@ struct CodeEditorView: NSViewRepresentable {
         }
 
         func refreshAuxiliaryViewState() {
-            gutterView?.setPaused(!currentIsActive)
-            miniMapView?.setPaused(!currentIsActive || !currentShowMiniMap)
+            setPaused(!currentIsActive)
         }
 
         func reportScrollPosition() {
@@ -312,6 +311,17 @@ struct CodeEditorView: NSViewRepresentable {
             }
             needsDeferredHighlighting = false
             applyHighlighting()
+        }
+        
+        func setPaused(_ paused: Bool) {
+            currentIsActive = !paused
+            if paused {
+                highlightWorkItem?.cancel()
+            } else if needsDeferredHighlighting {
+                applyHighlighting()
+            }
+            gutterView?.setPaused(paused)
+            miniMapView?.setPaused(paused || !currentShowMiniMap)
         }
 
         func applyDeferredHighlightingIfNeeded() {

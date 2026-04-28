@@ -1,7 +1,14 @@
 import SwiftUI
 import AppKit
 
-struct PathBarView<Trailing: View>: View {
+struct PathBarView<Trailing: View>: View, Equatable {
+    static func == (lhs: PathBarView<Trailing>, rhs: PathBarView<Trailing>) -> Bool {
+        lhs.fileURL == rhs.fileURL &&
+        lhs.projectRootURL == rhs.projectRootURL &&
+        lhs.gitInfo == rhs.gitInfo
+        // Note: Trailing content closure comparison is skipped as per standard practice.
+    }
+    
     var fileURL: URL?
     var projectRootURL: URL?
     var gitInfo: GitInfo?

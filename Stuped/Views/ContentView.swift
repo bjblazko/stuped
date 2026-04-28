@@ -331,17 +331,20 @@ struct ContentView: View {
                 Label("Open File", systemImage: "doc")
             }
             .help("Open File (Cmd+O)")
+            .animation(nil, value: false)
 
             Button(action: openFolderAction) {
                 Label("Open Folder", systemImage: "folder")
             }
             .help("Open Folder (Cmd+Shift+O)")
+            .animation(nil, value: false)
 
             Button(action: saveAction) {
                 Label("Save", systemImage: "square.and.arrow.down")
             }
             .help("Save (Cmd+S)")
             .disabled(isFolderMode && sidebarFileURL == nil)
+            .animation(nil, value: false)
 
             Menu {
                 if isPreviewable && !isImageFile {
