@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-05-10
+
+### Added
+
+- **Open Quickly** (⌘P) in folder mode: a floating panel for fuzzy file-name search across the entire open folder tree. Type to filter, ↑/↓ to navigate, Enter or click to open, Escape or ⌘P to dismiss.
+
 ### Fixed
 
 - `File > Open` / `Cmd+O` no longer presents the native open dialog twice when both the document and folder scenes are active.
