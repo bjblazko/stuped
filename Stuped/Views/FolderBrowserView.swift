@@ -66,6 +66,16 @@ struct FolderBrowserView: View {
                     )
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: .stupedToggleFileSearch)) { _ in
+                let searchRoot = FolderBrowserState.shared.treeRootURL
+                                 ?? FolderBrowserState.shared.folderURL
+                if let rootURL = searchRoot {
+                    FileSearchWindowManager.shared.toggle(
+                        rootURL: rootURL,
+                        onSelect: handleFileSelected
+                    )
+                }
+            }
 
             if showRecentItems {
                 RecentItemsPopupView(
@@ -134,6 +144,7 @@ extension Notification.Name {
     static let stupedFolderOpened = Notification.Name("stupedFolderOpened")
     static let stupedToggleRecentItems = Notification.Name("stupedToggleRecentItems")
     static let stupedToggleGlobalSearch = Notification.Name("stupedToggleGlobalSearch")
+    static let stupedToggleFileSearch = Notification.Name("stupedToggleFileSearch")
     static let stupedRevealInFileTree = Notification.Name("stupedRevealInFileTree")
     static let stupedShowGitChanges = Notification.Name("stupedShowGitChanges")
     static let stupedCreateNewFile = Notification.Name("stupedCreateNewFile")

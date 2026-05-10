@@ -4,18 +4,19 @@ import UniformTypeIdentifiers
 struct StupedDocument: FileDocument {
     var text: String
     var fileURL: URL?
-
-    static var readableContentTypes: [UTType] = [
-        .plainText,
-        .sourceCode,
-        .json,
-        .xml,
-        .yaml,
-        .html,
-        .shellScript,
-        .data,
-    ]
-
+static var readableContentTypes: [UTType] = [
+    .plainText,
+    .sourceCode,
+    .json,
+    .xml,
+    .yaml,
+    .html,
+    .css,
+    .shellScript,
+    .script,
+    .data,
+    .folder
+]
     static var writableContentTypes: [UTType] = [
         .plainText,
         .sourceCode,
@@ -31,6 +32,13 @@ struct StupedDocument: FileDocument {
     }
 
     init(configuration: ReadConfiguration) throws {
+        if configuration.file.isDirectory {
+            // Folder URLs can arrive through DocumentGroup (for example via Open Recent).
+            // ContentView redirects them into folder mode once the fileURL is available.
+            self.text = ""
+            return
+        }
+
         guard let data = configuration.file.regularFileContents else {
             throw CocoaError(.fileReadCorruptFile)
         }

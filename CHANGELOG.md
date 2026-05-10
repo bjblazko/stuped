@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `File > Open` / `Cmd+O` no longer presents the native open dialog twice when both the document and folder scenes are active.
+- Reopening a folder from `File > Open Recent` no longer crashes while `DocumentGroup` hands the folder URL off to folder mode.
+
 ## [0.6.4] - 2026-04-28
 
 ### Fixed
@@ -66,7 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Tabs, file-tree items, and path-bar breadcrumbs now offer `Copy Path` context-menu actions for **name only**, **project-relative path**, and **fully qualified path** clipboard copies.
-- Folder browsing now tracks **recent folders** in Stuped itself, exposing them in a dedicated **Recent Folders** menu and in the folder-mode **Cmd+R** quick switcher alongside recent files. macOS-native recent documents continue to power file recents.
+- Folder browsing now tracks **recent folders** in Stuped itself, exposing them in the consolidated **File > Open Recent** menu and in the folder-mode **Cmd+R** quick switcher alongside recent files. Folders are grouped with recent files and feature descriptive titles (Name + Abbreviated Path). Recent folders also appear in the macOS system-wide recents list (e.g., Dock icon menu).
 
 ## [0.5.3] - 2026-04-21
 

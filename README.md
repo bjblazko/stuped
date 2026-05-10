@@ -77,7 +77,7 @@ open Stuped.xcodeproj
 - **File > Open** (Cmd+O) to open a single file in its own window
 - **Double-click** a file in Finder to open it in Stuped
 - **Open Folder** (Cmd+Shift+O) to browse an entire directory
-- **File > Open Recent** to reopen files from macOS history, or **Recent Folders** to reopen folder workspaces from Stuped's own folder history
+- **File > Open Recent** to reopen files and folder workspaces from a consolidated history (seeded by macOS and Stuped)
 
 ### View modes
 

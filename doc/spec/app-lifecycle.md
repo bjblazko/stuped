@@ -19,6 +19,7 @@ DocumentGroup(newDocument: StupedDocument()) { file in
 - Each document gets its own window with its own `ContentView`.
 - Uses SwiftUI's native macOS full-screen interaction so the green traffic-light button enters full screen.
 - Uses custom launch behavior; the open/recent dialog is suppressed via `applicationShouldOpenUntitledFile` returning `false`, and `applicationDidFinishLaunching(_:)` only creates a blank document window after a brief delay if `DocumentGroup` still has not populated `NSDocumentController`.
+- Installs the shared app command set once; the folder scene does not re-register the same commands, which avoids duplicated native File-menu actions such as `File > Open`.
 
 ### 2. WindowGroup (folder browsing)
 
@@ -36,8 +37,9 @@ WindowGroup("Stuped — Folder", id: "folder-browser", for: String.self) { _ in
 - Declared as a `WindowGroup` so it gets standard macOS window management, including native fullscreen behavior.
 - Reused as a single logical folder window by always opening the group with the same presentation value (`"main"`).
 - Uses SwiftUI's native macOS full-screen interaction so the green traffic-light button enters full screen.
+- Reuses the shared app commands that are registered by the document scene instead of adding a second copy at the folder-scene level.
 - `FolderBrowserView` owns a `TabManager` and passes an `activeDocumentBinding` to `ContentView` so save commands still route through the active tab's text, while each open tab keeps its own mounted `DocumentPaneView`.
-- Folder opens are recorded in `RecentFoldersStore`, which powers Stuped's own `Recent Folders` menu and the folder-mode Cmd+R recent-items popup; this is app-managed history, while file recents still come from `NSDocumentController`.
+- Folder opens are recorded in `RecentFoldersStore`, which powers the consolidated `File > Open Recent` menu and the folder-mode Cmd+R recent-items popup; this is app-managed history merged with `NSDocumentController` file recents. Folder URLs are also passed to `NSDocumentController.noteNewRecentDocumentURL()` to enable system-wide recents (e.g. Dock menu).
 
 ### 3. Window (About)
 
@@ -72,6 +74,7 @@ class AppDelegate: NSObject, NSApplicationDelegate
 ### Single-file mode
 
 - Created by `DocumentGroup` when a file is opened.
+- Also acts as the initial handoff point for folder URLs that arrive through macOS document infrastructure such as `File > Open Recent`; directory wrappers are loaded as an empty placeholder document and then redirected into folder mode once `fileURL` is available to `ContentView`.
 - `ContentView(document:fileURL:)` -- `isFolderMode = false`.
 - Uses the same `DocumentPaneView` building block as folder mode, but with a single session and no tab strip.
 - `activeFileURL` returns `fileURL` (set by the system).

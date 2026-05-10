@@ -5,38 +5,43 @@ struct PathBarView<Trailing: View>: View, Equatable {
     static func == (lhs: PathBarView<Trailing>, rhs: PathBarView<Trailing>) -> Bool {
         lhs.fileURL == rhs.fileURL &&
         lhs.projectRootURL == rhs.projectRootURL &&
-        lhs.gitInfo == rhs.gitInfo
-        // Note: Trailing content closure comparison is skipped as per standard practice.
+        lhs.gitInfo == rhs.gitInfo &&
+        lhs.viewMode == rhs.viewMode
     }
     
     var fileURL: URL?
     var projectRootURL: URL?
     var gitInfo: GitInfo?
+    var viewMode: DocumentViewMode?
     var onNavigate: ((URL) -> Void)?
     var onShowGitChanges: (() -> Void)?
     private let trailing: Trailing
 
     /// No trailing content.
-    init(fileURL: URL?, projectRootURL: URL? = nil, gitInfo: GitInfo?, onNavigate: ((URL) -> Void)? = nil,
+    init(fileURL: URL?, projectRootURL: URL? = nil, gitInfo: GitInfo?, viewMode: DocumentViewMode? = nil,
+         onNavigate: ((URL) -> Void)? = nil,
          onShowGitChanges: (() -> Void)? = nil)
         where Trailing == EmptyView
     {
         self.fileURL = fileURL
         self.projectRootURL = projectRootURL
         self.gitInfo = gitInfo
+        self.viewMode = viewMode
         self.onNavigate = onNavigate
         self.onShowGitChanges = onShowGitChanges
         self.trailing = EmptyView()
     }
 
     /// With trailing content (e.g. a view-mode picker).
-    init(fileURL: URL?, projectRootURL: URL? = nil, gitInfo: GitInfo?, onNavigate: ((URL) -> Void)? = nil,
+    init(fileURL: URL?, projectRootURL: URL? = nil, gitInfo: GitInfo?, viewMode: DocumentViewMode? = nil,
+         onNavigate: ((URL) -> Void)? = nil,
          onShowGitChanges: (() -> Void)? = nil,
          @ViewBuilder trailing: () -> Trailing)
     {
         self.fileURL = fileURL
         self.projectRootURL = projectRootURL
         self.gitInfo = gitInfo
+        self.viewMode = viewMode
         self.onNavigate = onNavigate
         self.onShowGitChanges = onShowGitChanges
         self.trailing = trailing()

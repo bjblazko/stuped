@@ -162,6 +162,20 @@ struct ContentView: View {
         }
         .frame(minWidth: 500, minHeight: 400)
         .onAppear {
+            if !isFolderMode, let url = fileURL, url.hasDirectoryPath {
+                // This window was opened for a folder, redirect to folder browser
+                FolderBrowserState.shared.openFolder(url: url)
+                openWindow(id: AppWindowID.folderBrowser, value: AppWindowValue.folderBrowserSingleton)
+                
+                // Close this "document" window as it's not a valid text file
+                DispatchQueue.main.async {
+                    if let window = NSApp.keyWindow, window.contentView?.description.contains("ContentView") == true {
+                        window.close()
+                    }
+                }
+                return
+            }
+            
             setupFileTree()
             syncFolderBrowserTreeSelection()
             if isFolderMode {

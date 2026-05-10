@@ -35,6 +35,7 @@ struct DocumentPaneView: View {
                     fileURL: fileURL,
                     projectRootURL: projectRootURL,
                     gitInfo: gitInfo,
+                    viewMode: viewMode,
                     onNavigate: onNavigate,
                     onShowGitChanges: onShowGitChanges
                 ) {

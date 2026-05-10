@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 @Observable
 final class RecentFoldersStore {
@@ -33,6 +34,9 @@ final class RecentFoldersStore {
         }
 
         persist()
+        
+        // Also note in system-wide recents so it shows up in Dock icon, etc.
+        NSDocumentController.shared.noteNewRecentDocumentURL(normalized)
     }
 
     func clear() {

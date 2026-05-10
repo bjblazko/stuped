@@ -1,12 +1,6 @@
 import SwiftUI
 import AppKit
 
-private enum SearchMode: String, CaseIterable {
-    case filename = "Filename"
-    case contents = "Contents"
-    case both     = "Both"
-}
-
 private struct GlobalSearchMatch: Identifiable, Equatable {
     let id         = UUID()
     let url        : URL
@@ -25,7 +19,6 @@ struct GlobalSearchPopupView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var searchText     = ""
-    @State private var searchMode     : SearchMode = .both
     @State private var extFilter      = ""
     @State private var matches        : [GlobalSearchMatch] = []
     @State private var isSearching    = false
@@ -75,14 +68,13 @@ struct GlobalSearchPopupView: View {
             removeKeyMonitor()
         }
         .onChange(of: searchText)   { _, _ in selectedIdx = 0 }
-        .onChange(of: searchMode)   { _, _ in selectedIdx = 0 }
         .onChange(of: extFilter)    { _, _ in selectedIdx = 0 }
         .onChange(of: effectiveIdx) { _, _ in updatePreview() }
         // Re-focus search field when results arrive — guards against any layout-driven
         // focus loss that might occur when the body switches from emptyLabel to VSplitView.
         .onChange(of: matches)      { _, _ in searchFocused = true }
         // Include rootURL.path so the search reruns when the user switches projects.
-        .task(id: searchText + searchMode.rawValue + extFilter + rootURL.path) {
+        .task(id: searchText + extFilter + rootURL.path) {
             await performSearch()
         }
         .background(Color(nsColor: .windowBackgroundColor))
@@ -96,7 +88,7 @@ struct GlobalSearchPopupView: View {
                 .foregroundStyle(.secondary)
                 .font(.system(size: 13))
 
-            TextField("Search files…", text: $searchText)
+            TextField("Search in files…", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
                 .focused($searchFocused)
@@ -111,16 +103,6 @@ struct GlobalSearchPopupView: View {
                     .font(.system(size: 11, design: .monospaced))
                     .frame(width: 52)
             }
-
-            // Mode popup button (macOS-native)
-            Picker("", selection: $searchMode) {
-                ForEach(SearchMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
-                }
-            }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .fixedSize()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -275,7 +257,6 @@ struct GlobalSearchPopupView: View {
 
     private func performSearch() async {
         let q      = searchText
-        let mode   = searchMode
         let extRaw = extFilter
         let root   = rootURL          // capture current project root by value
         guard !q.isEmpty else { matches = []; isSearching = false; return }
@@ -293,28 +274,10 @@ struct GlobalSearchPopupView: View {
 
                 if let ext = extReq, url.pathExtension.lowercased() != ext { continue }
 
-                let nameLower = url.lastPathComponent.lowercased()
-                let nameMatch = nameLower.contains(lower)
-
-                switch mode {
-                case .filename:
-                    if nameMatch {
-                        hits.append(GlobalSearchMatch(url: url, lineNumber: nil, lineText: nil))
-                    }
-                case .contents:
-                    for (ln, lt) in (contentMatches(in: url, lower: lower) ?? []).prefix(5) {
-                        if hits.count >= 50 { break }
-                        hits.append(GlobalSearchMatch(url: url, lineNumber: ln, lineText: lt))
-                    }
-                case .both:
-                    if nameMatch {
-                        hits.append(GlobalSearchMatch(url: url, lineNumber: nil, lineText: nil))
-                    } else {
-                        for (ln, lt) in (contentMatches(in: url, lower: lower) ?? []).prefix(5) {
-                            if hits.count >= 50 { break }
-                            hits.append(GlobalSearchMatch(url: url, lineNumber: ln, lineText: lt))
-                        }
-                    }
+                // Always search contents
+                for (ln, lt) in (contentMatches(in: url, lower: lower) ?? []).prefix(5) {
+                    if hits.count >= 50 { break }
+                    hits.append(GlobalSearchMatch(url: url, lineNumber: ln, lineText: lt))
                 }
             }
             return hits
